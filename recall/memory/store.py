@@ -84,6 +84,19 @@ class MemoryStore:
         with self._lock:
             return self.db.execute("select count(*) from chunks").fetchone()[0]
 
+    def apps(self) -> list[str]:
+        with self._lock:
+            return [row[0] for row in self.db.execute("select distinct app from chunks where app != '' order by app")]
+
+    def recent(self, k: int = 20, app: str | None = None, since: str | None = None) -> list[dict]:
+        with self._lock:
+            rows = self.db.execute(
+                "select * from chunks where (:app is null or app = :app) and (:since is null or time >= :since) "
+                "order by time desc, id desc limit :k",
+                {"app": app, "since": since, "k": k},
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     def search(self, query_vector, query_text: str, k: int = 10, app: str | None = None,
                since: str | None = None) -> list[dict]:
         """Hybrid search: vector and keyword rankings merged by reciprocal rank fusion."""

@@ -7,10 +7,12 @@ import pystray
 from PIL import Image, ImageDraw
 
 from recall.capture.text_uia import TextCapture
+from recall.capture.vscode import EditorCapture, IngestServer
 from recall.config import data_dir, load_config, save_config
 from recall.memory.embed import Embedder
 from recall.memory.store import MemoryStore
 from recall.memory.worker import MemoryWorker
+from recall.ui.hotkey import Hotkey
 from recall.watcher import AudioWatcher, ForegroundWatcher, windowed_apps
 
 log = logging.getLogger("recall")
@@ -51,20 +53,35 @@ class TrayApp:
         self.store = MemoryStore(data_dir() / "memory.db", config["device_id"])
         self.memory = MemoryWorker(self.store, self.embedder)
         self.text = TextCapture(self.memory.submit)
+        self.editor = EditorCapture(self.memory.submit)
+        self.ingest = IngestServer(self.on_vscode_view)
         self.foreground = ForegroundWatcher(
             self.tracked, self.on_event, on_new_app=self.on_new_app, on_content=self.text.content_changed
         )
         self.audio = AudioWatcher(self.tracked, log_event)
+        self.hotkey = Hotkey(self.toggle_search)
+        self.search = None  # created in run(): it needs the UI loop
         self.icon = pystray.Icon(
             "recall",
             make_icon(live=True),
             "Recall",
             menu=pystray.Menu(
+                pystray.MenuItem(lambda item: f"Search   {self.hotkey.label}".strip(),
+                                 lambda icon, item: self.toggle_search(), default=True),
                 pystray.MenuItem("Tracked apps", pystray.Menu(self.app_items)),
                 pystray.MenuItem("Pause", self.toggle_pause, checked=lambda item: self.paused),
                 pystray.MenuItem("Quit", self.quit),
             ),
         )
+
+    def toggle_search(self) -> None:
+        if self.search:
+            self.search.toggle()
+
+    def on_vscode_view(self, view: dict) -> None:
+        # The extension posts whenever VS Code has focus; Recall decides whether it's tracked.
+        if not self.paused and "code.exe" in self.tracked:
+            self.editor.ingest(view)
 
     def on_event(self, e: dict) -> None:
         log_event(e)
@@ -106,21 +123,35 @@ class TrayApp:
         self.foreground.stop()
         self.audio.stop()
         self.text.stop()
+        self.ingest.stop()
         self.memory.stop()
+        self.hotkey.stop()
         icon.stop()
+        if self.search:
+            self.search.destroy()  # ends the UI loop in run()
 
     def on_ready(self, icon) -> None:
         icon.visible = True
         log.info("tray icon visible")
         self.memory.start()
+        self.ingest.start()
         self.text.start()
         self.foreground.start()
         self.audio.start()
         log.info("watchers started")
+        if self.hotkey.start():
+            log.info("search hotkey ready: %s", self.hotkey.label)
+            self.icon.update_menu()
 
     def run(self) -> None:
-        # Blocks in the Win32 message loop, so an idle Recall uses no CPU.
-        self.icon.run(setup=self.on_ready)
+        import webview
+
+        from recall.ui.search import SearchWindow
+
+        self.search = SearchWindow(self.store, self.embedder)
+        self.icon.run_detached(setup=self.on_ready)
+        # The search window's UI loop owns the main thread; like the tray's, it idles in GetMessage.
+        webview.start()
 
 
 def main() -> None:

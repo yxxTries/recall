@@ -2,6 +2,8 @@
 
 Order of preference per read: the window's first Document text (one fast call, used by
 browsers, Electron apps and editors), else a capped walk of the UIA control tree.
+VS Code is special: only its chat panels (webviews) are read here, since the rest of its
+UIA text is menus and file trees; editor code comes from recall.capture.vscode.
 Only lines not seen before in that window are emitted.
 """
 import logging
@@ -27,6 +29,10 @@ BROWSERS = {"chrome.exe", "msedge.exe", "brave.exe", "opera.exe", "vivaldi.exe"}
 PRIVATE_MARKERS = ("InPrivate", "Incognito")
 ADDRESS_BAR_NAME = "Address and search bar"  # Chrome and Edge, English UI
 HAS_WORDS = re.compile(r"\w\w")
+WEBVIEW_ID = re.compile(r"^vscode-webview://.*?[?&]id=([\w-]+)")
+# Chat panel controls that read as text but aren't conversation.
+CHAT_NOISE = re.compile(r"^(Thought for \d+s|Copy response to clipboard|Show more|Show less|New session|"
+                        r"Queue another message…|Message input)$")
 
 
 def clean_lines(text: str) -> list[str]:
@@ -55,6 +61,8 @@ class WindowReader:
             self.uia.CreatePropertyCondition(U.UIA_ControlTypePropertyId, U.UIA_EditControlTypeId),
             self.uia.CreatePropertyCondition(U.UIA_NamePropertyId, ADDRESS_BAR_NAME),
         )
+        self.value_cache = self.uia.CreateCacheRequest()
+        self.value_cache.AddProperty(U.UIA_ValueValuePropertyId)
         self.tree_cache = self.uia.CreateCacheRequest()
         for prop in (U.UIA_ControlTypePropertyId, U.UIA_NamePropertyId, U.UIA_ValueValuePropertyId,
                      U.UIA_IsPasswordPropertyId):
@@ -66,12 +74,32 @@ class WindowReader:
             U.UIA_TreeItemControlTypeId, U.UIA_HyperlinkControlTypeId, U.UIA_HeaderItemControlTypeId,
         }
 
-    def read(self, hwnd: int, is_browser: bool) -> tuple[str, str]:
+    def read(self, hwnd: int, app: str) -> tuple[str, str]:
         """(text, url) of a top-level window."""
         root = self.uia.ElementFromHandle(hwnd)
+        if app == "code.exe":
+            return self._webview_text(root), ""
         text = self._document_text(root) or self._tree_text(hwnd)
-        url = self._url(root) if is_browser else ""
+        url = self._url(root) if app in BROWSERS else ""
         return text, url
+
+    def _webview_text(self, root) -> str:
+        """Text of VS Code's webview panels (Claude Code, Gemini, Codex chats), each read once."""
+        U = self.U
+        docs = root.FindAllBuildCache(U.TreeScope_Descendants, self.document, self.value_cache)
+        seen_ids, parts = set(), []
+        for i in range(docs.Length if docs else 0):
+            doc = docs.GetElement(i)
+            value = doc.GetCachedPropertyValue(U.UIA_ValueValuePropertyId)
+            match = WEBVIEW_ID.match(value) if isinstance(value, str) else None
+            if not match or match.group(1) in seen_ids:  # a webview nests its page; the outer one holds it all
+                continue
+            seen_ids.add(match.group(1))
+            pattern = doc.GetCurrentPattern(U.UIA_TextPatternId)
+            if pattern:
+                text = pattern.QueryInterface(U.IUIAutomationTextPattern).DocumentRange.GetText(MAX_DOC_CHARS)
+                parts.extend(line for line in text.splitlines() if not CHAT_NOISE.match(line.strip()))
+        return "\n".join(parts)
 
     def _document_text(self, root) -> str:
         doc = root.FindFirst(self.U.TreeScope_Descendants, self.document)
@@ -171,7 +199,7 @@ class TextCapture:
         hwnd = session["hwnd"]
         started = time.perf_counter()
         try:
-            text, url = reader.read(hwnd, session["app"] in BROWSERS)
+            text, url = reader.read(hwnd, session["app"])
         except comtypes.COMError as e:  # e.g. the window closed mid-read
             log.debug("read failed for %s: %s", session["app"], e)
             return

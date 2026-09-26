@@ -1,0 +1,13 @@
+{
+  "name": "recall-companion",
+  "displayName": "Recall Companion",
+  "description": "Sends the lines you're viewing in the active editor to Recall on this machine (localhost only).",
+  "version": "0.1.0",
+  "publisher": "recall-hackathon",
+  "license": "MIT",
+  "engines": { "vscode": "^1.90.0" },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./extension.js",
+  "scripts": { "test": "node --test test/extension.test.js" }
+}

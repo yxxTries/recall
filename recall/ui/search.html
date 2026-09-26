@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Recall search</title>
+<style>
+  :root {
+    --bg: #16161a; --panel: #1f1f25; --line: #2c2c35; --text: #ececf1; --muted: #9a9aa8;
+    --accent: #ff5a5f; --accent-soft: rgba(255, 90, 95, 0.14); --mark: rgba(255, 196, 0, 0.28);
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #fbfbfc; --panel: #ffffff; --line: #e6e6ec; --text: #1c1c22; --muted: #6b6b78;
+      --accent: #e0383e; --accent-soft: rgba(224, 56, 62, 0.10); --mark: rgba(255, 196, 0, 0.35);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 14px/1.45 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; overflow: hidden; }
+  body { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 12px; }
+  header { padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+  .bar { display: flex; align-items: center; gap: 10px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); flex: none;
+    box-shadow: 0 0 0 4px var(--accent-soft); }
+  #q { flex: 1; border: 0; outline: 0; background: transparent; color: var(--text); font-size: 19px; padding: 4px 0; }
+  #q::placeholder { color: var(--muted); }
+  .filters { display: flex; gap: 8px; margin-top: 10px; }
+  select { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px;
+    padding: 3px 8px; font: inherit; font-size: 12.5px; }
+  .drag { flex: 1; }
+  main { flex: 1; overflow-y: auto; padding: 6px 8px; }
+  .result { display: flex; gap: 12px; padding: 10px; border-radius: 8px; cursor: pointer; }
+  .result.sel { background: var(--accent-soft); }
+  .badge { width: 32px; height: 32px; border-radius: 8px; flex: none; display: grid; place-items: center;
+    font-weight: 600; font-size: 13px; color: #fff; }
+  .body { min-width: 0; flex: 1; }
+  .meta { display: flex; gap: 8px; align-items: baseline; font-size: 12px; color: var(--muted); }
+  .title { color: var(--text); font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; max-width: 60%; }
+  .chip { border: 1px solid var(--line); border-radius: 999px; padding: 0 7px; font-size: 11px; }
+  .snippet { margin-top: 3px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+    overflow: hidden; white-space: pre-line; }
+  .url { margin-top: 2px; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1px; }
+  .empty { color: var(--muted); text-align: center; margin-top: 70px; }
+  footer { display: flex; justify-content: space-between; padding: 7px 16px; border-top: 1px solid var(--line);
+    font-size: 11.5px; color: var(--muted); }
+  kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; font: inherit; }
+  #toast { position: fixed; bottom: 42px; left: 50%; transform: translateX(-50%); background: var(--text);
+    color: var(--bg); padding: 5px 12px; border-radius: 6px; font-size: 12.5px; opacity: 0; transition: opacity .2s; }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<header class="pywebview-drag-region">
+  <div class="bar">
+    <span class="dot"></span>
+    <input id="q" placeholder="Search everything you've seen or heard…" autocomplete="off" spellcheck="false">
+  </div>
+  <div class="filters">
+    <select id="app"><option value="">All apps</option></select>
+    <select id="range">
+      <option value="any">Any time</option>
+      <option value="today">Today</option>
+      <option value="week">This week</option>
+    </select>
+    <span class="drag"></span>
+  </div>
+</header>
+<main id="results"></main>
+<footer>
+  <span><kbd>↑</kbd> <kbd>↓</kbd> select &nbsp; <kbd>Enter</kbd> open or copy &nbsp; <kbd>Esc</kbd> close</span>
+  <span id="count"></span>
+</footer>
+<div id="toast"></div>
+<script>
+  const $ = (s) => document.querySelector(s);
+  const SOURCES = { text: "Screen", audio: "Audio", ocr: "OCR" };
+  const STOPWORDS = new Set("the and for are was were that this with from what when where which about have has you your how did does its".split(" "));
+  let results = [], selected = 0, timer = null, lastQuery = "";
+
+  const escapeHtml = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  function highlight(text, query) {
+    const words = (query.toLowerCase().match(/\w{3,}/g) || []).filter((w) => !STOPWORDS.has(w));
+    const html = escapeHtml(text);
+    if (!words.length) return html;
+    return html.replace(new RegExp(`\\b(${words.join("|")})`, "gi"), "<mark>$1</mark>");
+  }
+
+  function badgeColor(app) {
+    let h = 0;
+    for (const c of app) h = (h * 31 + c.charCodeAt(0)) % 360;
+    return `hsl(${h} 55% 45%)`;
+  }
+
+  function ago(iso) {
+    const s = (Date.now() - new Date(iso).getTime()) / 1000;
+    if (s < 60) return "just now";
+    if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+    if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+    return new Date(iso).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  }
+
+  function render() {
+    const box = $("#results");
+    $("#count").textContent = results.length ? `${results.length} results` : "";
+    if (!results.length) {
+      box.innerHTML = `<div class="empty">${lastQuery ? "No memories match that yet." : "Nothing captured yet. Track an app from the tray."}</div>`;
+      return;
+    }
+    box.innerHTML = results.map((r, i) => {
+      const app = r.app.replace(/\.exe$/i, "");
+      return `<div class="result${i === selected ? " sel" : ""}" data-i="${i}">
+        <div class="badge" style="background:${badgeColor(app)}">${escapeHtml(app.slice(0, 2).toUpperCase())}</div>
+        <div class="body">
+          <div class="meta"><span class="title">${escapeHtml(r.title || app)}</span><span>${escapeHtml(app)}</span>
+            <span>${ago(r.time)}</span><span class="chip">${SOURCES[r.source] || r.source}</span></div>
+          <div class="snippet">${highlight(r.text.slice(0, 600), lastQuery)}</div>
+          ${r.url ? `<div class="url">${escapeHtml(r.url)}</div>` : ""}
+        </div></div>`;
+    }).join("");
+    box.querySelectorAll(".result").forEach((el) => {
+      el.onclick = () => { selected = +el.dataset.i; activate(); };
+    });
+    box.querySelector(".sel")?.scrollIntoView({ block: "nearest" });
+  }
+
+  async function run() {
+    lastQuery = $("#q").value;
+    results = await pywebview.api.search(lastQuery, $("#app").value, $("#range").value);
+    selected = 0;
+    render();
+  }
+
+  function schedule() { clearTimeout(timer); timer = setTimeout(run, 180); }
+
+  function toast(msg) {
+    const t = $("#toast");
+    t.textContent = msg; t.classList.add("show");
+    setTimeout(() => t.classList.remove("show"), 1200);
+  }
+
+  async function activate() {
+    const r = results[selected];
+    if (!r) return;
+    if (r.url) return pywebview.api.open(r.url);
+    if (await pywebview.api.copy(r.text)) toast("Copied to clipboard");
+  }
+
+  async function loadApps() {
+    const current = $("#app").value;
+    const apps = await pywebview.api.apps();
+    $("#app").innerHTML = `<option value="">All apps</option>` +
+      apps.map((a) => `<option value="${escapeHtml(a)}">${escapeHtml(a.replace(/\.exe$/i, ""))}</option>`).join("");
+    $("#app").value = apps.includes(current) ? current : "";
+  }
+
+  window.onShown = () => { $("#q").focus(); $("#q").select(); loadApps(); run(); };
+
+  $("#q").addEventListener("input", schedule);
+  $("#app").addEventListener("change", run);
+  $("#range").addEventListener("change", run);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { pywebview.api.hide(); }
+    else if (e.key === "ArrowDown") { selected = Math.min(selected + 1, results.length - 1); render(); e.preventDefault(); }
+    else if (e.key === "ArrowUp") { selected = Math.max(selected - 1, 0); render(); e.preventDefault(); }
+    else if (e.key === "Enter") { activate(); }
+  });
+  window.addEventListener("pywebviewready", () => { loadApps(); run(); });
+</script>
+</body>
+</html>
