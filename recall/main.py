@@ -1,5 +1,4 @@
 """Recall entry point: logging, PID file and the tray icon."""
-import json
 import logging
 import os
 from logging.handlers import RotatingFileHandler
@@ -9,6 +8,9 @@ from PIL import Image, ImageDraw
 
 from recall.capture.text_uia import TextCapture
 from recall.config import data_dir, load_config, save_config
+from recall.memory.embed import Embedder
+from recall.memory.store import MemoryStore
+from recall.memory.worker import MemoryWorker
 from recall.watcher import AudioWatcher, ForegroundWatcher, windowed_apps
 
 log = logging.getLogger("recall")
@@ -39,19 +41,16 @@ def log_event(e: dict) -> None:
     log.info("event %s", e)
 
 
-def append_capture(e: dict) -> None:
-    # Phase 2 sink: captured text as JSON lines. Phase 3 replaces this with the memory store.
-    with (data_dir() / "captures.jsonl").open("a", encoding="utf-8") as f:
-        f.write(json.dumps(e, ensure_ascii=False) + "\n")
-
-
 class TrayApp:
     def __init__(self, config: dict) -> None:
         self.config = config
         self.tracked = {a.lower() for a in config["tracked_apps"]}
         self.known_apps = windowed_apps() | self.tracked  # choices in the "Tracked apps" menu
         self.paused = False
-        self.text = TextCapture(append_capture)
+        self.embedder = Embedder()
+        self.store = MemoryStore(data_dir() / "memory.db", config["device_id"])
+        self.memory = MemoryWorker(self.store, self.embedder)
+        self.text = TextCapture(self.memory.submit)
         self.foreground = ForegroundWatcher(
             self.tracked, self.on_event, on_new_app=self.on_new_app, on_content=self.text.content_changed
         )
@@ -107,11 +106,13 @@ class TrayApp:
         self.foreground.stop()
         self.audio.stop()
         self.text.stop()
+        self.memory.stop()
         icon.stop()
 
     def on_ready(self, icon) -> None:
         icon.visible = True
         log.info("tray icon visible")
+        self.memory.start()
         self.text.start()
         self.foreground.start()
         self.audio.start()

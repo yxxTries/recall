@@ -20,7 +20,7 @@ def test_toggling_an_app_in_the_picker_saves_config(tmp_path, monkeypatch):
 
 def test_pause_stops_tracking_without_forgetting_apps(tmp_path, monkeypatch):
     monkeypatch.setenv("RECALL_HOME", str(tmp_path))
-    app = TrayApp({"tracked_apps": ["notepad.exe"]})
+    app = TrayApp({"tracked_apps": ["notepad.exe"], "device_id": "test-device"})
 
     app.toggle_pause(app.icon, None)
     assert app.foreground.tracked == set()
