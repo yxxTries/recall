@@ -1,4 +1,5 @@
 """Recall entry point: logging, PID file and the tray icon."""
+import json
 import logging
 import os
 from logging.handlers import RotatingFileHandler
@@ -6,6 +7,7 @@ from logging.handlers import RotatingFileHandler
 import pystray
 from PIL import Image, ImageDraw
 
+from recall.capture.text_uia import TextCapture
 from recall.config import data_dir, load_config, save_config
 from recall.watcher import AudioWatcher, ForegroundWatcher, windowed_apps
 
@@ -37,13 +39,22 @@ def log_event(e: dict) -> None:
     log.info("event %s", e)
 
 
+def append_capture(e: dict) -> None:
+    # Phase 2 sink: captured text as JSON lines. Phase 3 replaces this with the memory store.
+    with (data_dir() / "captures.jsonl").open("a", encoding="utf-8") as f:
+        f.write(json.dumps(e, ensure_ascii=False) + "\n")
+
+
 class TrayApp:
     def __init__(self, config: dict) -> None:
         self.config = config
         self.tracked = {a.lower() for a in config["tracked_apps"]}
         self.known_apps = windowed_apps() | self.tracked  # choices in the "Tracked apps" menu
         self.paused = False
-        self.foreground = ForegroundWatcher(self.tracked, log_event, on_new_app=self.on_new_app)
+        self.text = TextCapture(append_capture)
+        self.foreground = ForegroundWatcher(
+            self.tracked, self.on_event, on_new_app=self.on_new_app, on_content=self.text.content_changed
+        )
         self.audio = AudioWatcher(self.tracked, log_event)
         self.icon = pystray.Icon(
             "recall",
@@ -55,6 +66,13 @@ class TrayApp:
                 pystray.MenuItem("Quit", self.quit),
             ),
         )
+
+    def on_event(self, e: dict) -> None:
+        log_event(e)
+        if e["type"] == "session_start":
+            self.text.set_session(e)
+        elif e["type"] == "session_end":
+            self.text.set_session(None)
 
     def app_items(self):
         for app in sorted(self.known_apps):
@@ -88,11 +106,13 @@ class TrayApp:
         log.info("quit from tray")
         self.foreground.stop()
         self.audio.stop()
+        self.text.stop()
         icon.stop()
 
     def on_ready(self, icon) -> None:
         icon.visible = True
         log.info("tray icon visible")
+        self.text.start()
         self.foreground.start()
         self.audio.start()
         log.info("watchers started")

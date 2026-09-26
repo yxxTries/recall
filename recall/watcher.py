@@ -21,9 +21,15 @@ user32 = ctypes.WinDLL("user32", use_last_error=True)
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 
 EVENT_SYSTEM_FOREGROUND = 0x0003
+EVENT_SYSTEM_SCROLLINGSTART, EVENT_SYSTEM_SCROLLINGEND = 0x0012, 0x0013
+EVENT_OBJECT_MIN, EVENT_OBJECT_MAX = 0x8000, 0x80FF
+EVENT_OBJECT_LOCATIONCHANGE, EVENT_OBJECT_NAMECHANGE = 0x800B, 0x800C
 WINEVENT_OUTOFCONTEXT = 0x0000
 WINEVENT_SKIPOWNPROCESS = 0x0002
-WM_QUIT = 0x0012
+OBJID_WINDOW = 0
+GA_ROOT = 2
+WM_QUIT, WM_USER, PM_NOREMOVE = 0x0012, 0x0400, 0x0000
+WM_APP_REFRESH = 0x8001  # re-check the foreground window on the watcher thread
 
 WinEventProc = ctypes.WINFUNCTYPE(
     None, wintypes.HANDLE, wintypes.DWORD, wintypes.HWND,
@@ -42,6 +48,9 @@ user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
 user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
 user32.IsWindowVisible.argtypes = [wintypes.HWND]
 user32.EnumWindows.argtypes = [WNDENUMPROC, wintypes.LPARAM]
+user32.EnumChildWindows.argtypes = [wintypes.HWND, WNDENUMPROC, wintypes.LPARAM]
+user32.GetAncestor.restype = wintypes.HWND
+user32.GetAncestor.argtypes = [wintypes.HWND, wintypes.UINT]
 user32.PostThreadMessageW.argtypes = [wintypes.DWORD, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
 
 
@@ -49,14 +58,44 @@ def event(kind: str, **fields) -> dict:
     return {"type": kind, "time": datetime.now().isoformat(timespec="seconds"), **fields}
 
 
-def window_app(hwnd) -> str | None:
-    """Lower-case exe name of the process that owns hwnd."""
+def _window_pid(hwnd) -> int:
     pid = wintypes.DWORD()
     user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    return pid.value
+
+
+def _process_name(pid: int) -> str | None:
     try:
-        return psutil.Process(pid.value).name().lower()
+        return psutil.Process(pid).name().lower()
     except psutil.Error:
         return None
+
+
+def window_process(hwnd) -> tuple[int, str | None]:
+    """(pid, lower-case exe name) of the app that owns hwnd."""
+    pid = _window_pid(hwnd)
+    name = _process_name(pid)
+    if name == "applicationframehost.exe":
+        # Store apps: the frame belongs to ApplicationFrameHost; the app owns a child window.
+        found = []
+
+        @WNDENUMPROC
+        def find_app(child, _):
+            child_pid = _window_pid(child)
+            if child_pid != pid:
+                found.append(child_pid)
+                return False
+            return True
+
+        user32.EnumChildWindows(hwnd, find_app, 0)
+        if found:
+            return found[0], _process_name(found[0])
+    return pid, name
+
+
+def window_app(hwnd) -> str | None:
+    """Lower-case exe name of the app that owns hwnd."""
+    return window_process(hwnd)[1]
 
 
 def window_title(hwnd) -> str:
@@ -82,15 +121,24 @@ def windowed_apps() -> set[str]:
 
 
 class ForegroundWatcher:
-    """Emits session_start / session_end as tracked windows gain and lose the foreground."""
+    """Emits session_start / session_end as tracked windows gain and lose the foreground.
 
-    def __init__(self, tracked, on_event, on_new_app=None) -> None:
+    While a session is live it also hooks that app's accessibility events (its process only)
+    and calls on_content(session) when the window's content may have changed.
+    All hooks live on this watcher's thread; other threads only post messages to it.
+    """
+
+    def __init__(self, tracked, on_event, on_new_app=None, on_content=None) -> None:
         self.tracked = {a.lower() for a in tracked}
         self.on_event = on_event
         self.on_new_app = on_new_app  # called once per exe name first seen in the foreground
+        self.on_content = on_content
         self.seen_apps: set[str] = set()
-        self.current = None  # {"app", "hwnd", "title"} of the live session
-        self._lock = threading.Lock()
+        self.current = None  # {"app", "pid", "hwnd", "title"} of the live session
+        self._content_hooks = []
+        # WinEvent callbacks must outlive their hooks.
+        self._foreground_proc = WinEventProc(self._on_foreground)
+        self._content_proc = WinEventProc(self._on_content_event)
         self._ready = threading.Event()
         self._thread_id = 0
         self._thread = threading.Thread(target=self._run, name="foreground-watcher", daemon=True)
@@ -100,28 +148,34 @@ class ForegroundWatcher:
         self._ready.wait(timeout=5)
 
     def stop(self) -> None:
+        self.tracked = set()  # the refresh below ends any live session
+        user32.PostThreadMessageW(self._thread_id, WM_APP_REFRESH, 0, 0)
         user32.PostThreadMessageW(self._thread_id, WM_QUIT, 0, 0)
-        self._thread.join(timeout=5)
-        self.set_tracked(set())  # ends any live session
+        if self._thread.is_alive():
+            self._thread.join(timeout=5)
 
     def set_tracked(self, apps) -> None:
         self.tracked = {a.lower() for a in apps}
-        self._switch_to(user32.GetForegroundWindow())
+        user32.PostThreadMessageW(self._thread_id, WM_APP_REFRESH, 0, 0)
 
     def _run(self) -> None:
+        msg = wintypes.MSG()
+        user32.PeekMessageW(ctypes.byref(msg), None, WM_USER, WM_USER, PM_NOREMOVE)  # create the queue
         self._thread_id = kernel32.GetCurrentThreadId()
-        proc = WinEventProc(self._on_foreground)  # must outlive the hook
         hook = user32.SetWinEventHook(
-            EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, None, proc, 0, 0,
+            EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, None, self._foreground_proc, 0, 0,
             WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS,
         )
         self._switch_to(user32.GetForegroundWindow())
         self._ready.set()
         # Out-of-context hooks are delivered through this thread's message loop.
-        msg = wintypes.MSG()
         while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
+            if msg.message == WM_APP_REFRESH:
+                self._switch_to(user32.GetForegroundWindow())
+                continue
             user32.TranslateMessage(ctypes.byref(msg))
             user32.DispatchMessageW(ctypes.byref(msg))
+        self._unhook_content()
         user32.UnhookWinEvent(hook)
 
     def _on_foreground(self, hook, event_id, hwnd, id_object, id_child, thread, time_ms) -> None:
@@ -131,25 +185,50 @@ class ForegroundWatcher:
             log.exception("foreground event failed")
 
     def _switch_to(self, hwnd) -> None:
-        app = window_app(hwnd) if hwnd else None
-        out, new_app = [], None
-        with self._lock:
-            if app and app not in self.seen_apps:
-                self.seen_apps.add(app)
-                new_app = app
-            live = app in self.tracked
-            if self.current and live and self.current["hwnd"] == hwnd:
-                return
-            if self.current:
-                out.append(event("session_end", **self.current))
-                self.current = None
-            if live:
-                self.current = {"app": app, "hwnd": hwnd, "title": window_title(hwnd)}
-                out.append(event("session_start", **self.current))
-        for e in out:
-            self.on_event(e)
-        if new_app and self.on_new_app:
-            self.on_new_app(new_app)
+        pid, app = window_process(hwnd) if hwnd else (0, None)
+        if app and app not in self.seen_apps:
+            self.seen_apps.add(app)
+            if self.on_new_app:
+                self.on_new_app(app)
+        live = app in self.tracked
+        if self.current and live and self.current["hwnd"] == hwnd:
+            return
+        if self.current:
+            self._unhook_content()
+            ended, self.current = self.current, None
+            self.on_event(event("session_end", **ended))
+        if live:
+            self.current = {"app": app, "pid": pid, "hwnd": hwnd, "title": window_title(hwnd)}
+            self.on_event(event("session_start", **self.current))
+            self._hook_content(pid)
+
+    def _hook_content(self, pid: int) -> None:
+        for low, high in (
+            (EVENT_SYSTEM_SCROLLINGSTART, EVENT_SYSTEM_SCROLLINGEND),
+            (EVENT_OBJECT_MIN, EVENT_OBJECT_MAX),
+        ):
+            hook = user32.SetWinEventHook(low, high, None, self._content_proc, pid, 0, WINEVENT_OUTOFCONTEXT)
+            if hook:
+                self._content_hooks.append(hook)
+
+    def _unhook_content(self) -> None:
+        while self._content_hooks:
+            user32.UnhookWinEvent(self._content_hooks.pop())
+
+    def _on_content_event(self, hook, event_id, hwnd, id_object, id_child, thread, time_ms) -> None:
+        session = self.current
+        # Caret and layout moves fire constantly and never mean new text.
+        if not session or not hwnd or event_id == EVENT_OBJECT_LOCATIONCHANGE:
+            return
+        if user32.GetAncestor(hwnd, GA_ROOT) != session["hwnd"]:
+            return
+        if event_id == EVENT_OBJECT_NAMECHANGE and hwnd == session["hwnd"] and id_object == OBJID_WINDOW:
+            session["title"] = window_title(hwnd)  # e.g. a browser switched tabs
+        if self.on_content:
+            try:
+                self.on_content(dict(session))
+            except Exception:
+                log.exception("content callback failed")
 
 
 class _SessionCreated(AudioSessionNotification):

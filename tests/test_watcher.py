@@ -2,53 +2,17 @@
 
 These tests briefly take the foreground; don't type while they run.
 """
-import ctypes
 import subprocess
-import sys
 import time
-from pathlib import Path
 
 from recall.watcher import AudioWatcher, ForegroundWatcher
+from tests.helpers import PYTHON, PYTHONW, focus, open_window, wait_for
 
-user32 = ctypes.WinDLL("user32")
-VK_MENU, KEYEVENTF_KEYUP = 0x12, 0x0002
-
-# Tracked vs untracked test windows differ only by interpreter: pythonw.exe vs python.exe.
-PYTHONW = str(Path(sys.executable).with_name("pythonw.exe"))
-PYTHON = sys.executable
-WINDOW = "import sys, tkinter; r = tkinter.Tk(); r.title(sys.argv[1]); r.geometry('320x120'); r.mainloop()"
 SILENCE = (
     "import io, wave, winsound; b = io.BytesIO(); w = wave.open(b, 'wb'); "
     "w.setnchannels(1); w.setsampwidth(2); w.setframerate(16000); w.writeframes(bytes(64000)); w.close(); "
     "winsound.PlaySound(b.getvalue(), winsound.SND_MEMORY)"
 )
-
-
-def open_window(exe: str, title: str):
-    proc = subprocess.Popen([exe, "-c", WINDOW, title])
-    for _ in range(100):
-        hwnd = user32.FindWindowW(None, title)
-        if hwnd:
-            return proc, hwnd
-        time.sleep(0.1)
-    proc.kill()
-    raise RuntimeError(f"window {title!r} never appeared")
-
-
-def focus(hwnd) -> None:
-    # Windows only lets the foreground process move the foreground; a synthetic Alt tap lifts that lock.
-    user32.keybd_event(VK_MENU, 0, 0, 0)
-    user32.SetForegroundWindow(hwnd)
-    user32.keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0)
-
-
-def wait_for(predicate, timeout: float) -> bool:
-    end = time.monotonic() + timeout
-    while time.monotonic() < end:
-        if predicate():
-            return True
-        time.sleep(0.1)
-    return False
 
 
 def test_sessions_follow_the_foreground():
