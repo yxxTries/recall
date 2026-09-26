@@ -16,11 +16,14 @@ def main() -> int:
     try:
         time.sleep(5)
         log = home / "logs" / "recall.log"
+        text = log.read_text(encoding="utf-8") if log.exists() else ""
         checks = {
             "process still running": proc.poll() is None,
             "PID file written": (home / "recall.pid").exists(),
             "config created": (home / "config.json").exists(),
-            "tray icon shown": log.exists() and "tray icon visible" in log.read_text(encoding="utf-8"),
+            "tray icon shown": "tray icon visible" in text,
+            "watchers started": "watchers started" in text,
+            "no errors logged": "ERROR" not in text,
         }
     finally:
         proc.terminate()
