@@ -47,6 +47,48 @@ export function withZone(time: string, utcOffsetMinutes: number): string {
   return Number.isNaN(utc) ? time : localTime(new Date(utc - utcOffsetMinutes * 60_000).toISOString(), utcOffsetMinutes)
 }
 
+// The user's devices by id: the name they gave it, else the computer's name.
+export async function deviceNames(db: SupabaseClient): Promise<Record<string, string>> {
+  const rows = check(await db.from('devices').select('device_id, name, label')) as
+    { device_id: string; name: string; label: string }[]
+  return Object.fromEntries(rows.map((d) => [d.device_id, d.label || d.name || d.device_id.slice(0, 8)]))
+}
+
+// Everything in a period, in time order: what "what did I do today?" needs. The most important when there's too much.
+export async function periodEpisodes(db: SupabaseClient, since: string, until: string, device?: string | null, limit = 40) {
+  let q = db.from('episodes').select('episode_id, device_id, started, ended, apps, worked_on, importance')
+    .lte('started', until).gte('ended', since)
+  if (device) q = q.eq('device_id', device)
+  const rows = check(await q.order('importance', { ascending: false }).order('started', { ascending: false }).limit(limit)) as
+    { started: string }[]
+  return rows.sort((a, b) => Date.parse(a.started) - Date.parse(b.started))
+}
+
+// Decisions, deadlines and promises recorded since a time, most important first: what "what should I follow up on?" needs.
+export async function importantPoints(db: SupabaseClient, since: string, until?: string, device?: string | null, limit = 15) {
+  let q = db.from('episodes').select('episode_id, device_id, started, important')
+    .gte('ended', since).gte('importance', 5).neq('important', '{}')
+  if (until) q = q.lte('started', until)
+  if (device) q = q.eq('device_id', device)
+  return check(await q.order('importance', { ascending: false }).order('started', { ascending: false }).limit(limit)) as
+    { episode_id: string; device_id: string; started: string; important: string[] }[]
+}
+
+// Minutes in each app over a period, from the exact window spans (clipped to the period), most first.
+export async function timeByApp(db: SupabaseClient, since: string, until: string, device?: string | null) {
+  let q = db.from('timeline_spans').select('app, started, ended').lte('started', until).gte('ended', since)
+  if (device) q = q.eq('device_id', device)
+  const rows = check(await q.limit(5000)) as { app: string; started: string; ended: string }[]
+  const [from, to] = [Date.parse(since), Date.parse(until)]
+  const totals: Record<string, number> = {}
+  for (const s of rows) {
+    const ms = Math.min(Date.parse(s.ended), to) - Math.max(Date.parse(s.started), from)
+    if (ms > 0) totals[s.app] = (totals[s.app] ?? 0) + ms
+  }
+  return Object.entries(totals).sort((a, b) => b[1] - a[1]).slice(0, 8)
+    .map(([app, ms]) => ({ app, minutes: Math.round(ms / 60_000) }))
+}
+
 export async function search(db: SupabaseClient, query: string, since?: string, until?: string, k = 10) {
   const embedding = await embed(query)
   const rows = check(await db.rpc('search_memory', {

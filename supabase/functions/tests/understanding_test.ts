@@ -1,6 +1,6 @@
 // Unit tests for the cloud's understanding logic: npx deno test supabase/functions/tests
 import { assert, assertEquals, assertRejects, assertStringIncludes } from 'jsr:@std/assert@1'
-import { complete, LlmError, type Provider, providers } from '../_shared/llm.ts'
+import { complete, LlmError, type Provider, providers, waitFor } from '../_shared/llm.ts'
 import {
   DIGEST_SCHEMA, digestPrompt, EPISODE_SCHEMA, fallback, flagInstructions, groundEvidence, groundPeople, parse, prompt,
 } from '../_shared/understanding.ts'
@@ -109,4 +109,27 @@ Deno.test('AI assistants are not people', () => {
 Deno.test('people the text never names are dropped', () => {
   assertEquals(groundPeople(['Aisha', 'Ben Ortiz', 'Sarah Lee', 'Priya'], 'Aisha Khan: morning. Ben Ortiz: 👍 · Release planning'),
     ['Aisha', 'Ben Ortiz'])
+})
+
+Deno.test('a 429 that clears in seconds is waited out and retried once; a long one moves on', async () => {
+  const limited = (headers: Record<string, string>) => new Response('slow down', { status: 429, headers })
+  assertEquals(waitFor(limited({ 'retry-after': '3' })), 3)
+  assertEquals(waitFor(limited({ 'x-ratelimit-reset-tokens': '7.66s' })), 7.66)
+  assertEquals(waitFor(limited({ 'x-ratelimit-reset-tokens': '1m2.5s' })), 62.5)
+  assertEquals(waitFor(limited({ 'x-ratelimit-reset-requests': '450ms' })), 0.45)
+  assertEquals(waitFor(limited({})), null)
+
+  const groq: Provider[] = [{ name: 'groq', baseUrl: 'https://groq', key: 'g', model: 'm' }]
+  const slept: number[] = []
+  let calls = 0
+  const busyOnce = (async () => ++calls === 1
+    ? limited({ 'x-ratelimit-reset-tokens': '4s' })
+    : Response.json({ choices: [{ message: { content: '{}' } }], usage: {} })) as typeof fetch
+  const reply = await complete(groq, [], {}, busyOnce, async (ms) => { slept.push(ms) })
+  assertEquals([reply.provider, calls, slept], ['groq', 2, [4250]])
+
+  calls = 0
+  const busyLong = (async () => (++calls, limited({ 'retry-after': '40' }))) as typeof fetch
+  const error = await assertRejects(() => complete(groq, [], {}, busyLong, async () => {}), LlmError)
+  assertEquals([error.retryable, calls], [true, 1]) // not worth holding the answer 40 s
 })

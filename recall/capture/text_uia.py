@@ -29,6 +29,7 @@ TAIL_BUDGET_S = 1.0
 MAX_WINDOWS = 50  # windows whose seen-lines we remember
 MAX_SEEN_LINES = 20_000
 BROWSERS = {"chrome.exe", "msedge.exe", "brave.exe", "opera.exe", "vivaldi.exe"}
+BROWSER_UI = ("edge://", "chrome://", "brave://", "opera://", "vivaldi://")  # sign-in, sync and settings pages
 PRIVATE_MARKERS = ("InPrivate", "Incognito")
 # Chats keep their history on screen; the first read of one sends only its latest lines, the rest counts as seen.
 CHAT_APPS = {"code.exe", "ms-teams.exe", "slack.exe", "discord.exe", "whatsapp.exe", "telegram.exe", "signal.exe"}
@@ -89,8 +90,10 @@ class WindowReader:
         root = self.uia.ElementFromHandle(hwnd)
         if app == "code.exe":
             return self._webview_text(root), ""
+        if app in BROWSERS:  # only the page: a browser's own tabs, buttons and dialogs aren't what you were doing
+            return self._document_text(root), self._url(root)
         text = self._document_text(root) or self._tree_text(hwnd)
-        url = self._url(root) if app in BROWSERS else ""
+        url = ""
         return text, url
 
     def _webview_text(self, root) -> str:
@@ -144,9 +147,10 @@ class WindowReader:
         return "\n".join(reversed(paragraphs))
 
     def _document_text(self, root) -> str:
-        doc = root.FindFirst(self.U.TreeScope_Descendants, self.document)
-        if not doc:
-            return ""
+        doc = root.FindFirstBuildCache(self.U.TreeScope_Descendants, self.document, self.value_cache)
+        value = doc.GetCachedPropertyValue(self.U.UIA_ValueValuePropertyId) if doc else ""
+        if not doc or (isinstance(value, str) and value.startswith(BROWSER_UI)):
+            return ""  # a browser's own dialog: its page's tree is built by this read and comes first from then on
         pattern = doc.GetCurrentPattern(self.U.UIA_TextPatternId)
         if not pattern:
             return ""

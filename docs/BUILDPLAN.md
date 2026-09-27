@@ -78,7 +78,7 @@ CLOUD (Supabase, private per user)
 - [x] A window that never goes quiet (a streaming answer, a busy chat) is read every 4 s, not 10: median 1.85 s, max 3.8 s
 - [x] VS Code chat panels are read from their end. Past 200K characters (a few hours of Claude Code) the newest messages were never captured, and each read blocked VS Code for 107–270 ms; now the newest ~10K characters in calls of a few ms (~265 ms in all)
 - [x] A local file in a browser (`C:/Users/me/lease.pdf`) is its own subject; every local page and PDF had merged into one activity called "c"
-- [ ] Ask right after a send can answer "busy": understanding and the answer share Groq's 8K tokens a minute, and a 429 isn't retried
+- [x] Ask right after a send no longer answers "busy": understanding and the answer share Groq's 8K tokens a minute, so a 429 that clears within 12 s is waited out and retried once (a longer one still fails over)
 - Result (Sep 27): line on screen to captured 1.53 s (Chrome chat), 1.41 s (native editor), 1.61 s (VS Code); Recall at most 0.7% of one core and 56 MB; unit and integration suites pass. Demo path on a throwaway account: send → uploaded 1.5 s → understood 2.8 s later → paraphrase search and MCP `search_memory` hit within 2 s; about 65 s including a minute of work
 
 **3. Phase 8 · Demo (MVP on text capture)**
@@ -103,13 +103,19 @@ CLOUD (Supabase, private per user)
 
 **Budgets:** idle CPU under 0.5%, active text capture under 3%, RAM under 600 MB, text searchable under 5 s, speech under 30 s, episode understood under 2 min.
 
-## Demo script (3 min)
+## Demo script (2 min)
 
-1. Tray and app picker: Edge, VS Code and Teams tracked, Spotify not. (20 s)
-2. Read an article in Edge, edit a file in VS Code (play a talk clip if audio is done). (40 s)
-3. `Ctrl+Alt+Esc` to send, then the search hotkey: search a paraphrase on All devices, open the episode and its evidence. (40 s)
-4. Perf monitor: CPU near 0% while idle. (20 s)
-5. Claude Code over MCP: "what was I working on this afternoon?" (40 s)
-6. Privacy close: allowlist, no keystrokes, redaction on the device, memory private to you. (20 s)
+**Before:** Recall signed in to the demo account and not paused; Edge and VS Code tracked; the article open in Edge and a small project in VS Code; Claude Code connected over MCP; the dashboard signed in. A couple of minutes before you start, press send once, so the demo's episode holds only the demo. Keep the Claude Code panel closed until step 5: Recall reads that chat too, and a long one would take over the episode's summary.
 
-**If time runs short, cut in this order:** audio, digests and threads, OAuth for MCP (use one demo token). Never cut: the allowlist, text capture, redaction, cloud episodes with search and MCP, idle efficiency.
+1. Tray and app picker: Edge and VS Code tracked, Spotify not. Untracked apps are never even read. (10 s)
+2. Read the article in Edge, then write a few lines in VS Code. Each line is in Recall's memory on the device about 1.5 s after it appears. (35 s)
+3. `Ctrl+Alt+Esc`: "Sent 1 episode to the cloud"; the cloud has understood it about 4 s later. (10 s)
+4. Search hotkey, All devices, a paraphrase ("how do I stop handling the same event twice"): the episode, with its evidence on the dashboard. Or **Ask** on the dashboard: an answer citing the episode in about 2 s. (25 s)
+5. Claude Code over MCP: "what was I working on in the last 10 minutes?" (25 s)
+6. Close: allowlist, no keystrokes or screenshots, redaction on the device, memory private to you; Recall stays under 1% of one CPU core while it captures. (15 s)
+
+Measured on Sep 27 (automated, Edge and VS Code, throwaway account): send → uploaded 1.5 s → understood 4.2 s → search 5.1 s → MCP 6.2 s → Ask answered 8.3 s; 62 s including a minute of work.
+
+**On stage:** press send once. Understanding and Ask share Groq's 8K tokens a minute, so a second big send just before Ask can make it answer "busy": wait 10 s and ask again.
+
+**If time runs short, cut in this order:** Ask (keep search), digests and threads, audio. Never cut: the allowlist, text capture, redaction, cloud episodes with search and MCP, idle efficiency.
