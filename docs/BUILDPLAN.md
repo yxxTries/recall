@@ -212,7 +212,7 @@ Recall remembers what you were doing, not every line: "worked on recall in VS Co
 
 **Gate M4 (MVP):** use a tracked app for 5 min, then find its content (by keyword until Phase 7 adds search by meaning). A 30-min perf run stays within budget. Record a 60-s backup demo video. Push, tag `m4-mvp`.
 
-Paused on 2026-09-26 for Phase 3.1. Already checked: the hotkey opens a focused window in 0.03 s; typing, ↓ and Esc work; a stored `vscode://…:123` link opens the file at line 123. Still to run: the 5-min use, the 30-min perf run and the video.
+Left open on 2026-09-26 by choice; the build moves on to Phase 7. Already checked: the hotkey opens a focused window in 0.03 s; typing, ↓ and Esc work; a stored `vscode://…:123` link opens the file at line 123. Still to run: the 5-min use, the 30-min perf run and the video.
 
 ### Phase 5 · Audio capture (6 h)
 
