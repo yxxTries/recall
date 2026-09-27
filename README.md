@@ -36,21 +36,21 @@ SUPABASE_URL=https://<project>.supabase.co
 SUPABASE_ANON_KEY=<publishable key>
 ```
 
-Sign in once, then start Recall:
+Start Recall, then sign in:
 
 ```
-.venv\Scripts\python -m recall.sync.cloud signup   # once; confirm the email if asked
-.venv\Scripts\python -m recall.sync.cloud login
 run_recall.bat                                     # tray icon, no console
 ```
 
-Without signing in, Recall still captures and searches on this device only.
+Click the tray icon and choose **Sign in to the cloud…**. Your browser opens Recall's own page on `localhost:8766`: sign in, or create an account (confirm the email if asked, then sign in). Uploads start at once; no restart. The same page signs you out and shows the command to connect an AI agent. From a terminal, `.venv\Scripts\python -m recall.sync.cloud login` works too.
+
+Without signing in, Recall still captures and searches on this device only. If the cloud ever ends your session, Recall tells you and keeps what it captured until you sign in again.
 
 **Pick your apps:** click the tray icon, open **Tracked apps** and tick the apps to remember (for example `code.exe`, `msedge.exe`). Untracked apps are ignored and cost nothing. **Pause** stops all capture.
 
 **Send now:** episodes normally go to the cloud after 5 idle minutes or a change of task. Press `Ctrl+Alt+Esc` (or use **Send to cloud now** in the tray) to send what you're doing right away; it's understood a few seconds later and a notification confirms it. Handy for demos.
 
-**Search:** press `Ctrl+Shift+Space` (or `Win+Alt+Space` if that's taken; the tray menu shows which one). Type what something was about, not the exact words. Choose **All devices** to search your cloud memory.
+**Search:** press `Ctrl+Shift+Space` (or `Win+Alt+Space` if that's taken; the tray menu shows which one). Type what something was about, not the exact words. When you're signed in, it searches your cloud memory on **All devices** by default and understands time words: *what did I do yesterday afternoon*.
 
 **VS Code:** install the Recall Companion extension so Recall sees the code you're viewing:
 
@@ -80,7 +80,9 @@ Then run `/mcp` in Claude Code and authenticate. Your browser opens Recall's con
 | `search_memory` | Find past work by meaning and keywords, optionally in a time range. |
 | `get_episode` | One episode in full, with evidence. |
 | `list_threads`, `get_thread` | Ongoing projects: episodes of the same work linked across days. |
-| `daily_digest` | A summary of one day. |
+| `daily_digest` | A summary of one day (today if none is given). |
+
+Agents get your memory in your local time: every time carries your timezone, each reply says what time it is for you, and a time without a zone means your local time. `search_memory` understands "today", "this afternoon", "yesterday", "last week" in the query and says which period it searched. Any MCP client that supports remote servers with OAuth can connect the same way.
 
 Try: *"What was I working on this afternoon?"*
 

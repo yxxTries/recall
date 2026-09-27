@@ -53,6 +53,7 @@ CLOUD (Supabase, private per user)
 - [x] Send hotkey for the demo: `Ctrl+Alt+Esc` (Ctrl+Shift+Esc is Task Manager's) closes the open episode and uploads it; the upload starts understanding at once. Key press to understood episode: under 5 s
 - [x] Push and tag `m7-cloud`
 - [x] Dashboard at https://recall-memory-yxxtries.vercel.app (`web/`, deployed with the Vercel CLI): sign in with your Recall account from any device, see everything stored, and **Ask** in plain words (`ask` function: meaning search, then Groq answers citing the episodes)
+- [x] Seamless cloud lookup (Sep 27): sign in, create an account or sign out from the tray (Recall's page on localhost:8766, no terminal or restart); a revoked session keeps the outbox instead of dropping it; MCP gives agents local times, the user's timezone and "today"/"yesterday" in queries ("today" includes work since midnight); `pytest --cloud` 6/6, Deno 17/17
 
 **2. Finish Gate M4 (MVP checks)**
 
