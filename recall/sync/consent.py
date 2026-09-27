@@ -23,7 +23,7 @@ PAGE = """<!doctype html><meta charset="utf-8"><meta name="viewport" content="wi
 <style>body{{font:15px system-ui;max-width:28rem;margin:4rem auto;padding:0 1rem;color:#222}}
 button{{font:inherit;padding:.5rem 1.2rem;margin-right:.5rem;border-radius:6px;border:1px solid #888;cursor:pointer}}
 .allow{{background:#222;color:#fff}}code{{background:#f2f2f2;padding:0 .2rem}}</style>
-<h1>Connect {client}?</h1>{body}"""
+<h1>{heading}</h1>{body}"""
 
 
 class ConsentServer:
@@ -35,8 +35,9 @@ class ConsentServer:
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self):
                 url = urlparse(self.path)
-                if url.path != "/oauth/consent":
-                    return self.page(404, "Not found", "<p>Nothing here.</p>")
+                if url.path != "/oauth/consent":  # e.g. the sign-up confirmation email lands on the Site URL
+                    return self.page(200, "Recall", "<p>If you just confirmed your email, you're done: close this tab "
+                                     "and run <code>python -m recall.sync.cloud login</code>.</p>")
                 server.show(self, parse_qs(url.query).get("authorization_id", [""])[0])
 
             def do_POST(self):
@@ -49,7 +50,8 @@ class ConsentServer:
                 server.decide(self, field("authorization_id"), field("action"))
 
             def page(self, code: int, client: str, body: str) -> None:
-                data = PAGE.format(client=html.escape(client), body=body).encode()
+                heading = "Recall" if client == "Recall" else f"Connect {client}?"
+                data = PAGE.format(heading=html.escape(heading), body=body).encode()
                 self.send_response(code)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Content-Length", str(len(data)))
