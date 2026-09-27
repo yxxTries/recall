@@ -1,16 +1,21 @@
-"""Integration tests (real windows, audio, Node) are slow and take the foreground; they run only with --integration."""
+"""Slow tests run only when asked: integration tests (real windows, audio, Node) with --integration,
+cloud tests (the deployed Supabase project and Groq quota) with --cloud."""
 import pytest
+
+GATES = {"integration": "drives real windows, audio and Node (run at every gate)",
+         "cloud": "uses the deployed cloud and spends Groq quota (run at the M7 gate)"}
 
 
 def pytest_addoption(parser):
-    parser.addoption("--integration", action="store_true",
-                     help="also run the tests that drive real windows, audio and Node (run at every gate)")
+    for name, help in GATES.items():
+        parser.addoption(f"--{name}", action="store_true", help=f"also run the tests that {help}")
 
 
 def pytest_collection_modifyitems(config, items):
-    if config.getoption("--integration"):
-        return
-    skip = pytest.mark.skip(reason="integration test: run with --integration")
-    for item in items:
-        if "integration" in item.keywords:
-            item.add_marker(skip)
+    for name in GATES:
+        if config.getoption(name):
+            continue
+        skip = pytest.mark.skip(reason=f"{name} test: run with --{name}")
+        for item in items:
+            if name in item.keywords:
+                item.add_marker(skip)

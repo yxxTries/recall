@@ -55,6 +55,10 @@ create table public.threads (
 );
 create index threads_user on public.threads (user_id, ended desc);
 
+-- array_to_string is only STABLE, but generated columns need IMMUTABLE; joining text is safe to mark so.
+create function public.joined(parts text[]) returns text
+language sql immutable parallel safe set search_path = '' as $$ select coalesce(array_to_string(parts, ' '), '') $$;
+
 create table public.episodes (
     user_id uuid not null references auth.users on delete cascade,
     episode_id text not null,
@@ -75,12 +79,10 @@ create table public.episodes (
     embedding extensions.vector(384),
     words tsvector generated always as (
         setweight(to_tsvector('english', worked_on), 'A') ||
-        setweight(to_tsvector('english', coalesce(array_to_string(topics, ' '), '') || ' ' ||
-                                         coalesce(array_to_string(people, ' '), '')), 'A') ||
+        setweight(to_tsvector('english', public.joined(topics) || ' ' || public.joined(people)), 'A') ||
         setweight(to_tsvector('english', context), 'B') ||
-        setweight(to_tsvector('english', coalesce(array_to_string(actions, ' '), '') || ' ' ||
-                                         coalesce(array_to_string(important, ' '), '')), 'B') ||
-        setweight(to_tsvector('english', coalesce(array_to_string(evidence, ' '), '')), 'C')
+        setweight(to_tsvector('english', public.joined(actions) || ' ' || public.joined(important)), 'B') ||
+        setweight(to_tsvector('english', public.joined(evidence)), 'C')
     ) stored,
     primary key (user_id, episode_id)
 );

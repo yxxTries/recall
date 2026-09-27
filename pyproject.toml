@@ -1,4 +1,5 @@
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
-markers = ["integration: drives real windows, audio or Node; run with --integration"]
+markers = ["integration: drives real windows, audio or Node; run with --integration",
+           "cloud: uses the deployed Supabase project and Groq; run with --cloud"]
