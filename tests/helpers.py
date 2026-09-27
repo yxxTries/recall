@@ -49,8 +49,13 @@ def open_window(exe: str, title: str, script: str = TK_WINDOW):
 
 
 def edit_controls(hwnd) -> tuple[int, int]:
-    """(text box, password box) of an EDIT_WINDOW."""
-    return user32.GetDlgItem(hwnd, 1), user32.GetDlgItem(hwnd, 2)
+    """(text box, password box) of an EDIT_WINDOW, once both exist (they're created just after its title appears)."""
+    for _ in range(50):
+        boxes = user32.GetDlgItem(hwnd, 1), user32.GetDlgItem(hwnd, 2)
+        if all(boxes):
+            return boxes
+        time.sleep(0.1)
+    raise RuntimeError("edit controls never appeared")
 
 
 def post_text(edit_hwnd, text: str) -> None:

@@ -20,7 +20,7 @@ from recall.watcher import event
 log = logging.getLogger(__name__)
 
 DEBOUNCE_S = 1.5  # read once the content has been quiet this long...
-MAX_WAIT_S = 10.0  # ...or at least this often while it keeps changing
+MAX_WAIT_S = 4.0  # ...or at least this often while it keeps changing (a streaming answer, a busy chat): under 5 s
 MAX_NODES = 2000
 MAX_DOC_CHARS = 200_000
 MAX_WINDOWS = 50  # windows whose seen-lines we remember
