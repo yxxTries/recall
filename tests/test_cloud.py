@@ -230,12 +230,48 @@ def test_an_agent_connects_through_oauth_and_the_consent_page(users):
     query = parse_qs(urlparse(back).query)
     assert back.startswith(callback) and query["state"] == ["s1"]
 
-    token = request("POST", f"{URL}/auth/v1/oauth/token", {"Content-Type": "application/x-www-form-urlencoded"},
-                    urlencode({"grant_type": "authorization_code", "code": query["code"][0], "redirect_uri": callback,
-                               "client_id": client["client_id"], "code_verifier": verifier}).encode())
-    agent = type("Agent", (), {"token": lambda self: token["access_token"]})()
-    assert len(mcp(agent, "tools/list", {})["result"]["tools"]) == 6
-    assert tool(agent, "list_threads", {}) == tool(device_1, "list_threads", {})  # user A's memory, via the agent's token
+    try:
+        token = request("POST", f"{URL}/auth/v1/oauth/token", {"Content-Type": "application/x-www-form-urlencoded"},
+                        urlencode({"grant_type": "authorization_code", "code": query["code"][0], "redirect_uri": callback,
+                                   "client_id": client["client_id"], "code_verifier": verifier}).encode())
+        agent = type("Agent", (), {"token": lambda self: token["access_token"]})()
+        assert len(mcp(agent, "tools/list", {})["result"]["tools"]) == 6
+        assert tool(agent, "list_threads", {}) == tool(device_1, "list_threads", {})  # user A's memory, via the agent's token
+    finally:
+        admin("DELETE", f"oauth/clients/{client['client_id']}")
+
+
+def test_any_mcp_client_can_connect(users):
+    """Not only Claude Code: browser clients, every protocol version, clients that take only JSON."""
+    import urllib.error
+
+    device_1, *_ = users
+    endpoint = f"{URL}/functions/v1/mcp"
+    preflight = urllib.request.urlopen(urllib.request.Request(endpoint, method="OPTIONS", headers={
+        "Origin": "http://localhost:6274", "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "authorization,content-type,mcp-protocol-version"}))
+    assert "mcp-protocol-version" in preflight.headers["Access-Control-Allow-Headers"]
+    try:  # no token: the challenge a client (or a browser page) reads to find where to sign in
+        urllib.request.urlopen(urllib.request.Request(endpoint, method="POST", data=b"{}",
+                                                      headers={"Content-Type": "application/json"}))
+        raise AssertionError("served without a token")
+    except urllib.error.HTTPError as e:
+        assert e.code == 401 and "www-authenticate" in e.headers["Access-Control-Expose-Headers"]
+        metadata_url = e.headers["WWW-Authenticate"].split('resource_metadata="')[1].rstrip('"')
+    [issuer] = json.load(urllib.request.urlopen(metadata_url))["authorization_servers"]
+    auth_server = json.load(urllib.request.urlopen(issuer.replace("/auth/v1", "/.well-known/oauth-authorization-server/auth/v1")))
+    assert auth_server["registration_endpoint"] and "S256" in auth_server["code_challenge_methods_supported"]
+
+    for version in ("2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"):
+        assert mcp(device_1, "initialize", {"protocolVersion": version, "capabilities": {},
+                                            "clientInfo": {"name": "test", "version": "1"}})["result"]["protocolVersion"] == version
+    plain = urllib.request.Request(endpoint, method="POST", data=json.dumps(
+        {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}).encode(), headers={
+        "Authorization": f"Bearer {device_1.token()}", "Content-Type": "application/json", "Accept": "application/json"})
+    with urllib.request.urlopen(plain) as res:
+        assert res.headers["Content-Type"].startswith("application/json") and len(json.load(res)["result"]["tools"]) == 6
+    missing = mcp(device_1, "tools/call", {"name": "get_thread", "arguments": {"thread_id": 999999999}})["result"]
+    assert missing["isError"] and "No thread" in missing["content"][0]["text"]
 
 
 def test_yesterday_gets_a_digest(tmp_path):

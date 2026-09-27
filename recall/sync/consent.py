@@ -104,12 +104,15 @@ class ConsentServer:
     def account(self, handler, message: str = "", status: int = 200, email: str = "") -> None:
         e = html.escape
         form = lambda fields: f"<form method=post action=/account><input type=hidden name=nonce value='{self.nonce}'>{fields}</form>"
+        mcp = f"{self.cloud.url}/functions/v1/mcp"
         if self.cloud.signed_in:
             body = (f"<p>Signed in as <b>{e(self.cloud.email)}</b>. What you do in tracked apps goes to your private "
                     "cloud memory, so you can search it from any device.</p>"
                     f"<p><a href='{DASHBOARD}'>Open the dashboard</a> to ask your memory questions.</p>"
-                    "<p>Connect an AI agent, for example Claude Code:"
-                    f"<code>claude mcp add --transport http recall {e(self.cloud.url)}/functions/v1/mcp</code></p>"
+                    "<p>Connect any AI agent that speaks MCP: add this server URL, then choose Allow when this page asks."
+                    f"<code>{e(mcp)}</code></p><p class=muted>Claude Code:"
+                    f"<code>claude mcp add --transport http recall {e(mcp)}</code>"
+                    f"A client that only runs local commands:<code>npx -y mcp-remote {e(mcp)}</code></p>"
                     + form("<button name=action value=signout>Sign out</button>"))
         else:
             body = ("<p>Sign in to keep your memory in the cloud: search it from any device, ask it questions on the "

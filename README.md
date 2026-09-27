@@ -66,23 +66,26 @@ Logs: `%LOCALAPPDATA%\Recall\logs\recall.log`.
 
 ## Connect an AI agent (MCP)
 
-With Recall running and signed in:
+Your memory is a remote MCP server that any MCP client can use: Claude Code, Claude Desktop, ChatGPT, Cursor, VS Code, Windsurf, Gemini CLI and others. The URL is on Recall's account page (tray: **Cloud: you@...**):
 
 ```
-claude mcp add --transport http recall https://<project>.supabase.co/functions/v1/mcp
+https://<project>.supabase.co/functions/v1/mcp
 ```
 
-Then run `/mcp` in Claude Code and authenticate. Your browser opens Recall's consent page on `localhost:8766`; choose **Allow**. The agent gets read-only access to your memory, and no one else's.
+1. Add the URL to your client as a remote (HTTP) MCP server. Claude Code: `claude mcp add --transport http recall <URL>`, then `/mcp`.
+2. Your browser opens Recall's consent page on `localhost:8766`. Choose **Allow**.
+
+The agent gets read-only access to your memory, and no one else's. A client that can only run local commands (stdio) uses a bridge as its command: `npx -y mcp-remote <URL>`.
 
 | Tool | What it answers |
 | --- | --- |
 | `get_timeline` | What was I doing between two times? Episodes plus exact app and window spans. |
-| `search_memory` | Find past work by meaning and keywords, optionally in a time range. |
+| `search_memory` | Find past work by meaning and keywords. Understands "today", "yesterday", "last week". |
 | `get_episode` | One episode in full, with evidence. |
-| `list_threads`, `get_thread` | Ongoing projects: episodes of the same work linked across days. |
+| `list_threads`, `get_thread` | Ongoing projects: the same work linked across days and devices. |
 | `daily_digest` | A summary of one day (today if none is given). |
 
-Agents get your memory in your local time: every time carries your timezone, each reply says what time it is for you, and a time without a zone means your local time. `search_memory` understands "today", "this afternoon", "yesterday", "last week" in the query and says which period it searched. Any MCP client that supports remote servers with OAuth can connect the same way.
+Times are in your timezone, and every reply says what time it is for you.
 
 Try: *"What was I working on this afternoon?"*
 
