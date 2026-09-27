@@ -88,7 +88,7 @@ QUESTIONS = [
      [["timezone", "time zone"], ["vector", "pgvector"], ["deposit", "venue"], ["rehears"], ["landing"], ["readme"],
       ["pull request", "rate limit", "rate-limit"], ["teapot", "present", "mum"], ["pitch", "deck", "slide"], ["ask"]], 6, [], []),
     ("laptop", "What did I do on my laptop yesterday?", [], [["sponsor", "contoso"], ["oauth", "supabase"]], None,
-     ["budget", "localhost", "rehears", "readme"], ["d1b"]),
+     ["budget", "localhost", "readme", "pitch"], ["d1b"]),  # desktop-only work
     ("desktop_pm", "What was I doing on my desktop yesterday afternoon?", [], [["consent"]], None, ["contoso", "budget", "supabase", "oauth"], ["d1d"]),
     ("sponsor", "Which sponsor did we pick for the hackathon?", [], [["contoso"]], None, [], ["d1b"]),
     ("vscode", "How long was I in VS Code today?", [], [["54"]], None, [], []),

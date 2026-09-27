@@ -30,6 +30,9 @@ Deno.test('time words in a question become a local-time range (a day runs from 5
   // At 5:42 am after a late night, today still has the 1 am work; at 2 am, today began yesterday at 5 am.
   assertEquals(timeRange('what was I working on today', new Date('2026-09-27T08:42:00Z'), -180),
     { since: '2026-09-27T03:00:00.000Z', until: '2026-09-28T08:00:00.000Z' })
+  // ...and then yesterday ends at midnight rather than counting the small hours twice.
+  assertEquals(timeRange('what did I do yesterday', new Date('2026-09-27T08:42:00Z'), -180),
+    { since: '2026-09-26T08:00:00.000Z', until: '2026-09-27T03:00:00.000Z' })
   assertEquals(timeRange('what did I do today', new Date('2026-09-27T05:00:00Z'), -180),
     { since: '2026-09-26T08:00:00.000Z', until: '2026-09-27T08:00:00.000Z' })
   assertEquals(at('what did I do this afternoon'), { since: '2026-09-27T15:00:00.000Z', until: '2026-09-27T21:00:00.000Z' })

@@ -28,8 +28,9 @@ export type Context = {
 export const ASK_SYSTEM = 'You answer questions about the user\'s own past computer activity on all of their devices, ' +
   'using only the memory given. Episodes were captured from their screen and understood earlier. Answer in plain ' +
   'words, briefly, speaking to the user as "you". Give times as local times. Mention a device ("on your laptop") ' +
-  'only when the question is about devices or it tells two things apart. For a question about a period, give a short rundown in time order. For how long, use the time ' +
-  'by app. If the memory does not contain the answer, say so plainly and do not guess. Write plain text: no markdown ' +
+  'only when the question is about devices or it tells two things apart. For a question about a period, give a ' +
+  'short rundown in time order that covers everything in the period list (group similar items when there are many). ' +
+  'For how long, use the time by app. If the memory does not contain the answer, say so plainly and do not guess. Write plain text: no markdown ' +
   'and no episode ids (a line may start with "- "). Say days and times the way people do ("Friday at 10 am", ' +
   '"yesterday afternoon"). For to-dos, follow-ups and deadlines, use only the important points recorded; ' +
   'never invent tasks. Cite every episode you used, from the relevant episodes or the period list, in cited. ' +
@@ -80,7 +81,8 @@ export function timeRange(question: string, now: Date, utcOffsetMinutes: number)
   if (/\bmorning\b/.test(q)) return range(day, day + 7 * HOUR) // 5 am to noon
   if (/\bafternoon\b/.test(q)) return range(day + 7 * HOUR, day + 13 * HOUR) // noon to 6 pm
   if (/\bevening\b|\btonight\b|\blast night\b/.test(q)) return range(day + 12 * HOUR, day + 24 * HOUR) // 5 pm to 5 am
-  if (/\byesterday\b/.test(q)) return range(day, day + 24 * HOUR)
+  // Yesterday ends where today begins: after a late night, the small hours are today's, not both days'.
+  if (/\byesterday\b/.test(q)) return range(day, Math.min(day + 24 * HOUR, today, midnight))
   // Today also has what was done since midnight: at 6 am after a late night, that night's work is today's.
   if (/\btoday\b/.test(q)) return range(Math.min(today, midnight), today + 24 * HOUR)
   return null
