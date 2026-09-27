@@ -17,13 +17,6 @@ def config_path() -> Path:
     return data_dir() / "config.json"
 
 
-def models_dir() -> Path:
-    # Shared by every RECALL_HOME so tests and extra "devices" don't re-download models.
-    path = Path(os.environ["LOCALAPPDATA"]) / "Recall" / "models"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
-
-
 def load_config() -> dict:
     config = {"tracked_apps": []}
     path = config_path()

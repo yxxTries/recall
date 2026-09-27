@@ -1,9 +1,7 @@
 comtypes==1.4.17
-fastembed==0.8.1
 pillow==12.3.0
 psutil==7.2.2
 pycaw==20260927
 pystray==0.19.5
 pytest==9.1.1
 pywebview==6.2.1
-sqlite-vec==0.1.9

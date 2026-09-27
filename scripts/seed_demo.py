@@ -8,8 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from recall.config import data_dir, load_config  # noqa: E402
-from recall.memory.chunker import chunk_event  # noqa: E402
-from recall.memory.embed import Embedder  # noqa: E402
+from recall.memory.activity import ActivityTracker  # noqa: E402
 from recall.memory.store import MemoryStore  # noqa: E402
 
 # (minutes ago, app, title, url, source, text)
@@ -25,9 +24,12 @@ DEMO = [
      "Priya: judging starts at 2pm sharp, demos are 3 minutes max\n"
      "Tom: wifi password for the hacker lounge is on the whiteboard by the stage\n"
      "Priya: remember to submit the devpost link before 1:30"),
-    (35, "code.exe", "store.py - recall - Visual Studio Code", "", "text",
-     "Hybrid search: vector and keyword rankings merged by reciprocal rank fusion.\n"
+    (38, "code.exe", "recall/memory/store.py - recall", "vscode://file/C:/dev/recall/recall/memory/store.py:40",
+     "text", "Hybrid search: vector and keyword rankings merged by reciprocal rank fusion.\n"
      "RRF_K = 60 keeps one very strong keyword match from drowning the semantic results."),
+    (35, "code.exe", "recall/ui/hotkey.py - recall", "vscode://file/C:/dev/recall/recall/ui/hotkey.py:15", "text",
+     "Candidate hotkeys are tried in order; the first one no other app holds wins.\n"
+     "Ctrl+Shift+Space is often taken, so Win+Alt+Space is the usual fallback."),
     (52, "ms-teams.exe", "Weekly sync | Microsoft Teams", "", "audio",
      "Sarah: the vendor shortlist is Acme, Globex and Initech, we decide by Friday.\n"
      "Dev: Globex was cheapest but their support contract only covers weekdays.\n"
@@ -58,16 +60,17 @@ DEMO = [
 def main() -> int:
     config = load_config()
     store = MemoryStore(data_dir() / "memory.db", config["device_id"])
-    embedder = Embedder()
+    tracker = ActivityTracker()
     now = datetime.now()
-    chunks = []
-    for minutes, app, title, url, source, text in DEMO:
-        e = {"type": source, "source": source, "app": app, "title": title, "url": url, "text": text,
+    records = {}
+    for minutes, app, title, url, source, text in sorted(DEMO, key=lambda row: -row[0]):  # oldest first
+        e = {"type": "text", "source": source, "app": app, "title": title, "url": url, "text": text,
              "time": (now - timedelta(minutes=minutes)).isoformat(timespec="seconds")}
-        chunks.extend(chunk_event(e))
-    chunks = store.new_chunks(chunks)
-    added = store.add(chunks, embedder.passages([f"{c['title']}\n{c['text']}" for c in chunks])) if chunks else 0
-    print(f"seeded {added} demo memories into {data_dir() / 'memory.db'} ({store.count()} total)")
+        record = tracker.add(e)
+        records[record["activity_id"]] = record  # the latest state of each activity
+    for record in records.values():
+        store.upsert(record)
+    print(f"seeded {len(records)} demo activities into {data_dir() / 'memory.db'} ({store.count()} total)")
     return 0
 
 

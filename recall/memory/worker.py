@@ -1,21 +1,21 @@
-"""Turns capture events into stored memories on a below-normal-priority thread."""
+"""Turns capture events into stored activity records on a below-normal-priority thread."""
 import ctypes
 import logging
 import queue
 import threading
 
-from recall.memory.chunker import chunk_event
+from recall.memory.activity import ActivityTracker
 
 log = logging.getLogger(__name__)
 THREAD_PRIORITY_BELOW_NORMAL = -1
 MAX_QUEUED = 1000
-MAX_BATCH = 32  # events embedded together
+MAX_BATCH = 32  # events folded together, so a burst costs one write per activity
 
 
 class MemoryWorker:
-    def __init__(self, store, embedder) -> None:
+    def __init__(self, store) -> None:
         self.store = store
-        self.embedder = embedder
+        self.tracker = ActivityTracker()
         self._queue: queue.Queue = queue.Queue(maxsize=MAX_QUEUED)
         self._thread = threading.Thread(target=self._run, name="memory-worker", daemon=True)
 
@@ -52,10 +52,12 @@ class MemoryWorker:
                 return
 
     def _store(self, events: list[dict]) -> None:
-        chunks = self.store.new_chunks([c for e in events for c in chunk_event(e)])
-        if not chunks:
-            return
-        # The title gives short chunks their context ("which page was this?").
-        vectors = self.embedder.passages([f"{c['title']}\n{c['text']}" for c in chunks])
-        added = self.store.add(chunks, vectors)
-        log.info("stored %d chunks from %d events", added, len(events))
+        records = {}
+        for e in events:
+            record = self.tracker.add(e)
+            if record:
+                records[record["activity_id"]] = record  # the latest state of each activity
+        for record in records.values():
+            self.store.upsert(record)
+        if records:
+            log.info("updated %d activities from %d events", len(records), len(events))

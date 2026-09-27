@@ -28,7 +28,7 @@ The plan defaults to Python in a single process. Confirm or change these five de
 | --- | --- | --- | --- |
 | Language | Python 3.10, one process | C# / .NET 8, single exe | Fastest to iterate; ONNX, Whisper and UI Automation already run in native code |
 | Microphone | Opt-in per app, off by default | On whenever a tracked app is active | Privacy; the demo works on app output audio alone |
-| Answers | Ranked search results; LLM "Ask" is a stretch goal | LLM answers from day one | Core stays local and offline |
+| Answers | Changed 2026-09-26: on-device rule-based activity records + keyword search; embeddings, search by meaning and any LLM run in the cloud | Local embeddings + semantic search (the original default) | Recall keeps the general context, not every line; the device stays light (no models) |
 | Cloud | Supabase (Postgres + pgvector + auth) | Own FastAPI + Postgres | Auth, database and REST API with no server code |
 | Git flow | Push to `main`, tag every milestone | Branch + PR per phase | Speed; tags give known-good rollback points before the demo |
 
@@ -46,9 +46,9 @@ Everything up to search runs on the device in one low-priority process. The clou
 
 ```
 [Foreground watcher] -> [Text capture: UIA, OCR fallback] --\
-                     -> [Audio capture: loopback, VAD, Whisper] --> [Memory pipeline: dedupe, chunk, embed]
-[Search UI] <- [Local store: SQLite vectors + FTS5] <- memory pipeline
-[Local store] -> [Sync worker] -> [Cloud knowledge base] <- [Other devices]   (cloud built last, Phase 7)
+                     -> [Audio capture: loopback, VAD, Whisper] --> [Activity memory: rules -> activity records]
+[Search UI] <- [Local store: SQLite + FTS5 keywords] <- activity memory
+[Local store] -> [Sync worker] -> [Cloud knowledge base: embeddings, search by meaning, LLM] <- [Other devices]   (Phase 7)
 ```
 
 The watcher is the gate: text capture runs only while a tracked app is in the foreground, and audio capture only while a tracked app is playing sound. When neither is true, no capture code runs. Text and audio feed the same pipeline, so search treats them alike.
@@ -186,15 +186,31 @@ Text capture must work properly in VS Code before other apps. VS Code hides edit
 
 **Gate M3:** chunker, dedupe and store unit tests pass. Golden-query test: 20 seeded snippets, 20 paraphrased queries, at least 18 land in the top 3. Capture to searchable in under 5 s. Push, tag `m3-memory`.
 
+Superseded by Phase 3.1: the chunker, local embeddings and vector search were removed; search by meaning moves to Phase 7.
+
+### Phase 3.1 · Context memory (added mid-build)
+
+Recall remembers what you were doing, not every line: "worked on recall in VS Code", "meeting with Sarah and Dev", for every tracked app. Records are built by rules on the device. Embeddings, search by meaning and any LLM live in the cloud (Phase 7), so until then local search matches words, not meaning.
+
+- [x] Activity blocks: events about one subject (VS Code workspace, website, chat or meeting window) merge until it's quiet for 5 min; switching apps in between doesn't split them
+- [x] Each record keeps a templated summary, top files or pages, people (`Name:` lines, "with X" titles), top 12 terms and up to 5 key lines; all other captured text is dropped
+- [x] Time in a tracked app counts even without readable text (focus of 10 s or more)
+- [x] Store: `activities` table + FTS5 keyword search, upserted on every change (searchable at once; `synced` resets for Phase 7)
+- [x] Removed fastembed, sqlite-vec, the chunker and the model download; the search window shows summary, app, time span and key lines
+
+**Gate M3.1:** passed. pytest 34/34, smoke 6/6. Typed text searchable by keyword in 1.53 s. Live VS Code run (2.5 min): 2 activity records; a 2,666-line chat-panel read became one record; RAM 113–116 MB (was 2.2 GB after one big chat read), CPU 0.03% average; database 53 KB. Tag `m3.1-context`.
+
 ### Phase 4 · Search UI, the MVP (4 h)
 
-- [ ] Global hotkey (Ctrl+Shift+Space) opens a small search window
-- [ ] Window: pywebview (Edge WebView2) rendering one HTML page, with a Python API bridge and no server
-- [ ] Results show snippet, app icon, window title, time and source (text or audio); click copies the text or opens the URL
-- [ ] Filters: app; today or this week
-- [ ] `scripts/seed_demo.py` loads a known demo dataset
+- [x] Global hotkey (Ctrl+Shift+Space, else Win+Alt+Space when another app holds it) opens a small search window
+- [x] Window: pywebview (Edge WebView2) rendering one HTML page, with a Python API bridge and no server
+- [x] Results show snippet, app icon (initials badge; real icons in the Phase 8 visual pass), window title, time and source (text or audio); click copies the text or opens the URL
+- [x] Filters: app; today or this week
+- [x] `scripts/seed_demo.py` loads a known demo dataset
 
-**Gate M4 (MVP):** use a tracked app for 5 min, then find its content by paraphrase. A 30-min perf run stays within budget. Record a 60-s backup demo video. Push, tag `m4-mvp`.
+**Gate M4 (MVP):** use a tracked app for 5 min, then find its content (by keyword until Phase 7 adds search by meaning). A 30-min perf run stays within budget. Record a 60-s backup demo video. Push, tag `m4-mvp`.
+
+Paused on 2026-09-26 for Phase 3.1. Already checked: the hotkey opens a focused window in 0.03 s; typing, ↓ and Esc work; a stored `vscode://…:123` link opens the file at line 123. Still to run: the 5-min use, the 30-min perf run and the video.
 
 ### Phase 5 · Audio capture (6 h)
 
@@ -220,11 +236,12 @@ Text capture must work properly in VS Code before other apps. VS Code hides edit
 
 ### Phase 7 · Cloud knowledge base (8 h)
 
-- [ ] Supabase project: `devices` and `chunks` tables (text, `vector(384)` embedding, metadata, device ID), row-level security per user
+- [ ] Supabase project: `devices` and `activities` tables (summary, key lines, metadata, device ID, `vector(384)` embedding computed in the cloud), row-level security per user
 - [ ] Device registration on first run; device ID and auth token stored locally
-- [ ] Sync worker: every 10 min when the machine is idle, push unsynced chunks in batches of 200; upsert by chunk ID so retries never duplicate
+- [ ] Sync worker: every 10 min when the machine is idle, push unsynced activities in batches of 200; upsert by activity ID so retries never duplicate
 - [ ] Offline-safe: failed pushes retry with backoff, and the local DB stays the source of truth
 - [ ] Cloud search: one Postgres function for vector + keyword search across devices; "All devices" toggle in the search UI
+- [ ] Cloud intelligence: embeddings and search by meaning over synced activities (the golden paraphrase test moves here); LLM summaries or answers if time allows
 - [ ] Stretch: link related memories across devices (nearest-neighbour "related" items under each result)
 
 **Gate M7:** two devices (or two device IDs on one machine) sync, and device B finds a memory captured on device A. Cut the network mid-sync; after reconnecting, the cloud has no gaps and no duplicates. Push, tag `m7-cloud`.
@@ -252,9 +269,9 @@ Every phase runs the same short loop, so the latest green tag on GitHub is alway
 
 | Layer | What it checks | Tool | From |
 | --- | --- | --- | --- |
-| Unit | Chunker, dedupe, store, sync cursor, config | pytest | Phase 0, every commit |
+| Unit | Activity rules, store, sync cursor, config | pytest | Phase 0, every commit |
 | Scripted UI | Text typed into a tracked app is captured exactly once | pywinauto + pytest | Phase 2 |
-| Golden queries | 20 paraphrased queries find seeded snippets in the top 3 | pytest | Phase 3 |
+| Golden queries | 20 paraphrased queries find seeded snippets in the top 3 | pytest | Phase 7 (cloud search) |
 | Audio fixtures | A known clip's key phrases appear in the transcript | pytest + fixture WAV | Phase 5 |
 | Sync | Two device IDs, network cut mid-sync, no gaps or duplicates | pytest against a Supabase test project | Phase 7 |
 | Perf budget | CPU, RAM and latency against the budgets below | `scripts/perf_monitor.py` | Every gate |

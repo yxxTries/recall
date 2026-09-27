@@ -9,7 +9,6 @@ from PIL import Image, ImageDraw
 from recall.capture.text_uia import TextCapture
 from recall.capture.vscode import EditorCapture, IngestServer
 from recall.config import data_dir, load_config, save_config
-from recall.memory.embed import Embedder
 from recall.memory.store import MemoryStore
 from recall.memory.worker import MemoryWorker
 from recall.ui.hotkey import Hotkey
@@ -49,9 +48,8 @@ class TrayApp:
         self.tracked = {a.lower() for a in config["tracked_apps"]}
         self.known_apps = windowed_apps() | self.tracked  # choices in the "Tracked apps" menu
         self.paused = False
-        self.embedder = Embedder()
         self.store = MemoryStore(data_dir() / "memory.db", config["device_id"])
-        self.memory = MemoryWorker(self.store, self.embedder)
+        self.memory = MemoryWorker(self.store)
         self.text = TextCapture(self.memory.submit)
         self.editor = EditorCapture(self.memory.submit)
         self.ingest = IngestServer(self.on_vscode_view)
@@ -89,6 +87,7 @@ class TrayApp:
             self.text.set_session(e)
         elif e["type"] == "session_end":
             self.text.set_session(None)
+        self.memory.submit(e)  # time in a tracked app is context even when it shows no readable text
 
     def app_items(self):
         for app in sorted(self.known_apps):
@@ -148,7 +147,7 @@ class TrayApp:
 
         from recall.ui.search import SearchWindow
 
-        self.search = SearchWindow(self.store, self.embedder)
+        self.search = SearchWindow(self.store)
         self.icon.run_detached(setup=self.on_ready)
         # The search window's UI loop owns the main thread; like the tray's, it idles in GetMessage.
         webview.start()

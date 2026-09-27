@@ -35,8 +35,7 @@
     font-weight: 600; font-size: 13px; color: #fff; }
   .body { min-width: 0; flex: 1; }
   .meta { display: flex; gap: 8px; align-items: baseline; font-size: 12px; color: var(--muted); }
-  .title { color: var(--text); font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis;
-    white-space: nowrap; max-width: 60%; }
+  .summary { font-weight: 600; font-size: 13.5px; overflow-wrap: anywhere; }
   .chip { border: 1px solid var(--line); border-radius: 999px; padding: 0 7px; font-size: 11px; }
   .snippet { margin-top: 3px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
     overflow: hidden; white-space: pre-line; }
@@ -102,6 +101,12 @@
     return new Date(iso).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
   }
 
+  function when(start, end) {
+    const minutes = Math.round((new Date(end) - new Date(start)) / 60000);
+    const span = minutes >= 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} min` : `${minutes} min`;
+    return minutes >= 1 ? `${ago(end)} · ${span}` : ago(end);
+  }
+
   function render() {
     const box = $("#results");
     $("#count").textContent = results.length ? `${results.length} results` : "";
@@ -114,9 +119,10 @@
       return `<div class="result${i === selected ? " sel" : ""}" data-i="${i}">
         <div class="badge" style="background:${badgeColor(app)}">${escapeHtml(app.slice(0, 2).toUpperCase())}</div>
         <div class="body">
-          <div class="meta"><span class="title">${escapeHtml(r.title || app)}</span><span>${escapeHtml(app)}</span>
-            <span>${ago(r.time)}</span><span class="chip">${SOURCES[r.source] || r.source}</span></div>
-          <div class="snippet">${highlight(r.text.slice(0, 600), lastQuery)}</div>
+          <div class="summary">${highlight(r.title, lastQuery)}</div>
+          <div class="meta"><span>${escapeHtml(app)}</span><span>${when(r.start, r.time)}</span>
+            <span class="chip">${SOURCES[r.source] || r.source}</span></div>
+          ${r.text ? `<div class="snippet">${highlight(r.text.slice(0, 600), lastQuery)}</div>` : ""}
           ${r.url ? `<div class="url">${escapeHtml(r.url)}</div>` : ""}
         </div></div>`;
     }).join("");

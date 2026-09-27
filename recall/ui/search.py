@@ -47,20 +47,16 @@ def copy_to_clipboard(text: str) -> bool:
 class SearchApi:
     """Called from the page as pywebview.api.<method>. Only public methods are exposed."""
 
-    def __init__(self, store, embedder, on_hide=None) -> None:
+    def __init__(self, store, on_hide=None) -> None:
         self._store = store
-        self._embedder = embedder
         self._on_hide = on_hide
 
     def search(self, query: str, app: str = "", time_range: str = "any") -> list[dict]:
         query = query.strip()
         filters = {"app": app or None, "since": since_for(time_range)}
-        if not query:
-            rows = self._store.recent(k=20, **filters)
-        else:
-            rows = self._store.search(self._embedder.query(query), query, k=20, **filters)
-        keep = ("text", "app", "title", "url", "source", "time")
-        return [{key: row[key] for key in keep} for row in rows]
+        rows = self._store.search(query, k=20, **filters) if query else self._store.recent(k=20, **filters)
+        return [{"title": row["summary"], "text": row["key_lines"], "app": row["app"], "url": row["url"],
+                 "source": row["source"], "start": row["started"], "time": row["ended"]} for row in rows]
 
     def apps(self) -> list[str]:
         return self._store.apps()
@@ -78,10 +74,10 @@ class SearchApi:
 
 
 class SearchWindow:
-    def __init__(self, store, embedder) -> None:
+    def __init__(self, store) -> None:
         import webview  # loads .NET/WebView2; keep it out of import time for tests
 
-        self.api = SearchApi(store, embedder, on_hide=self.hide)
+        self.api = SearchApi(store, on_hide=self.hide)
         self.visible = False
         self._closing_for_real = False
         self.window = webview.create_window(
