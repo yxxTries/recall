@@ -105,7 +105,7 @@ CLOUD (Supabase, private per user)
 
 ## Demo script (2 min)
 
-**Before:** Recall signed in to the demo account and not paused; Edge and VS Code tracked; the article open in Edge and a small project in VS Code; Claude Code connected over MCP; the dashboard signed in.
+**Before:** Recall signed in to the demo account and not paused; Edge and VS Code tracked; the article open in Edge and a small project in VS Code; Claude Code connected over MCP; the dashboard signed in. A couple of minutes before you start, press send once, so the demo's episode holds only the demo. Keep the Claude Code panel closed until step 5: Recall reads that chat too, and a long one would take over the episode's summary.
 
 1. Tray and app picker: Edge and VS Code tracked, Spotify not. Untracked apps are never even read. (10 s)
 2. Read the article in Edge, then write a few lines in VS Code. Each line is in Recall's memory on the device about 1.5 s after it appears. (35 s)
