@@ -51,7 +51,8 @@ class TrayApp:
         self.config = config
         self.tracked = {a.lower() for a in config["tracked_apps"]}
         self.known_apps = windowed_apps() | self.tracked  # choices in the "Tracked apps" menu
-        self.paused = False
+        self.paused = bool(config.get("paused"))  # a pause outlasts a restart: capture resumes only when you say so
+        live = set() if self.paused else self.tracked
         self.store = MemoryStore(data_dir() / "memory.db", config["device_id"])
         self.sync = SyncWorker(data_dir(), CloudSession(), config["device_id"], socket.gethostname())
         self.memory = MemoryWorker(self.store, self.sync)
@@ -60,16 +61,16 @@ class TrayApp:
         self.editor = EditorCapture(self.memory.submit)
         self.ingest = IngestServer(self.on_vscode_view)
         self.foreground = ForegroundWatcher(
-            self.tracked, self.on_event, on_new_app=self.on_new_app, on_content=self.text.content_changed
+            live, self.on_event, on_new_app=self.on_new_app, on_content=self.text.content_changed
         )
-        self.audio = AudioWatcher(self.tracked, log_event)
+        self.audio = AudioWatcher(live, log_event)
         self.hotkey = Hotkey(self.toggle_search)
         self.send_hotkey = Hotkey(self.send_now, SEND_CANDIDATES, name="send")
         self.search = None  # created in run(): it needs the UI loop
         self.icon = pystray.Icon(
             "recall",
-            make_icon(live=True),
-            "Recall",
+            make_icon(live=not self.paused),
+            "Recall (paused)" if self.paused else "Recall",
             menu=pystray.Menu(
                 pystray.MenuItem(lambda item: f"Search   {self.hotkey.label}".strip(),
                                  lambda icon, item: self.toggle_search(), default=True),
@@ -137,6 +138,8 @@ class TrayApp:
         icon.icon = make_icon(live=not self.paused)
         icon.title = "Recall (paused)" if self.paused else "Recall"
         log.info("capture %s", "paused" if self.paused else "resumed")
+        self.config["paused"] = self.paused
+        save_config(self.config)
         self.apply_tracking()
 
     def apply_tracking(self) -> None:
@@ -198,7 +201,8 @@ def main() -> None:
     config = load_config()
     pid_file = data_dir() / "recall.pid"
     pid_file.write_text(str(os.getpid()))
-    log.info("Recall started (pid %d), tracking %d apps", os.getpid(), len(config["tracked_apps"]))
+    log.info("Recall started (pid %d), tracking %d apps%s", os.getpid(), len(config["tracked_apps"]),
+             ", paused" if config.get("paused") else "")
     try:
         TrayApp(config).run()
     finally:

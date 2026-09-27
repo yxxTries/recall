@@ -28,3 +28,17 @@ def test_pause_stops_tracking_without_forgetting_apps(tmp_path, monkeypatch):
 
     app.toggle_pause(app.icon, None)
     assert app.foreground.tracked == {"notepad.exe"}
+
+
+def test_a_pause_outlasts_a_restart(tmp_path, monkeypatch):
+    monkeypatch.setenv("RECALL_HOME", str(tmp_path))
+    config = load_config()
+    config["tracked_apps"] = ["notepad.exe"]
+    app = TrayApp(config)
+    app.toggle_pause(app.icon, None)
+
+    restarted = TrayApp(load_config())
+    assert restarted.paused and restarted.foreground.tracked == set() and restarted.audio.tracked == set()
+    assert restarted.icon.title == "Recall (paused)"
+    restarted.toggle_pause(restarted.icon, None)
+    assert not load_config()["paused"] and restarted.foreground.tracked == {"notepad.exe"}

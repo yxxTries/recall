@@ -170,3 +170,17 @@ def test_numbered_repeats_keep_their_first_and_last_line():
     kept = episode["text"].splitlines()[1:]
     assert kept[:2] == ["cap the backoff at ten minutes", lines[0]] and len(kept) == 3
     assert kept[2].startswith("tests/test_sync.py::test_case_09")  # the run's last (near-duplicates were never kept)
+
+
+def test_the_memory_evals_capture_streams_segment_as_expected():
+    """scripts/eval_memory.py's realistic scenarios, device side only: free, so every commit checks them."""
+    from scripts.eval_memory import SCENARIOS, boundaries_ok, build
+    events, windows = build(SCENARIOS)
+    segmenter, episodes = Segmenter(), []
+    for e in events:
+        episodes += segmenter.add(e)
+    episodes += segmenter.close()
+    for s in SCENARIOS:
+        lo, hi = windows[s["name"]]
+        mine = [ep for ep in episodes if lo <= datetime.fromisoformat(ep["started"]) < hi]
+        assert len(mine) == s["episodes"] and not boundaries_ok(s, mine), s["name"]
