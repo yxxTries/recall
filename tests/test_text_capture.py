@@ -1,13 +1,18 @@
 """Phase 2 gate: text typed into a tracked native window is captured once; passwords never are."""
+import subprocess
 import time
 import uuid
+from pathlib import Path
 
+import psutil
 import pytest
 
 from recall.capture import text_uia
-from recall.capture.text_uia import TextCapture, clean_lines
+from recall.capture.text_uia import TAIL_BUDGET_S, TAIL_CHARS, TextCapture, WindowReader, clean_lines
 from recall.watcher import ForegroundWatcher
-from tests.helpers import EDIT_WINDOW, PYTHONW, edit_controls, focus, open_window, post_text, wait_for
+from tests.helpers import EDIT_WINDOW, PYTHONW, edit_controls, focus, open_window, post_text, user32, wait_for
+
+CHROME = Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe")
 
 
 def test_clean_lines_normalises_and_dedupes():
@@ -77,6 +82,44 @@ def test_windows_passed_through_are_not_read(live):
     assert wait_for(lambda: texts, timeout=2)
     time.sleep(0.5)
     assert LiveReader.reads == [2]
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(not CHROME.exists(), reason="needs Chrome")
+def test_a_long_chat_is_read_from_its_end_in_small_steps(tmp_path):
+    """A chat over 500K characters (a long Claude Code day): the newest messages are at the end, past any cap
+    read from the top. Chromium renders VS Code's chat panels, so Chrome stands in for them."""
+    page = tmp_path / "chat.html"
+    page.write_text("<title>recall-test-long-chat</title>" + "".join(
+        f"<p>message {i} about the <b>release</b> plan, see <code>deploy_{i}.py</code></p>" for i in range(15_000)),
+        encoding="utf-8")
+    profile = str(tmp_path / "profile")
+    subprocess.Popen([str(CHROME), f"--user-data-dir={profile}", "--no-first-run", "--no-default-browser-check",
+                      "--new-window", page.as_uri()])
+    try:
+        assert wait_for(lambda: user32.FindWindowW(None, "recall-test-long-chat - Google Chrome"), timeout=20)
+        reader = WindowReader()
+        root = reader.uia.ElementFromHandle(user32.FindWindowW(None, "recall-test-long-chat - Google Chrome"))
+        assert wait_for(lambda: bool(root.FindFirst(reader.U.TreeScope_Descendants, reader.document)), timeout=20)
+        doc = root.FindFirst(reader.U.TreeScope_Descendants, reader.document)
+        pattern = doc.GetCurrentPattern(reader.U.UIA_TextPatternId).QueryInterface(reader.U.IUIAutomationTextPattern)
+        assert wait_for(lambda: "message 14999" in pattern.DocumentRange.GetText(-1)[-100:], timeout=20)
+
+        started = time.perf_counter()
+        tail = clean_lines(reader._tail(doc, pattern))
+        elapsed = time.perf_counter() - started
+    finally:
+        for p in psutil.process_iter(["name", "cmdline"]):
+            try:
+                if p.info["name"] == "chrome.exe" and any(profile in a for a in p.info["cmdline"] or []):
+                    p.kill()
+            except psutil.Error:
+                pass
+    assert tail[-2:] == ["message 14998 about the release plan, see deploy_14998.py",
+                         "message 14999 about the release plan, see deploy_14999.py"]  # whole lines, bold and code kept
+    assert len(tail) >= 50 and sum(len(line) for line in tail) < 2 * TAIL_CHARS
+    assert elapsed < TAIL_BUDGET_S + 0.5, f"took {elapsed:.2f} s"
+    print(f"tail read: {len(tail)} lines in {elapsed * 1000:.0f} ms")
 
 
 class Pipeline:

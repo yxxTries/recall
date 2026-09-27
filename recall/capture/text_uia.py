@@ -3,7 +3,8 @@
 Order of preference per read: the window's first Document text (one fast call, used by
 browsers, Electron apps and editors), else a capped walk of the UIA control tree.
 VS Code is special: only its chat panels (webviews) are read here, since the rest of its
-UIA text is menus and file trees; editor code comes from recall.capture.vscode.
+UIA text is menus and file trees; editor code comes from recall.capture.vscode. A chat panel
+is read from its end (its latest ~10K characters), where the newest messages are.
 Only lines not seen before in that window are emitted.
 """
 import logging
@@ -23,6 +24,8 @@ DEBOUNCE_S = 1.5  # read once the content has been quiet this long...
 MAX_WAIT_S = 4.0  # ...or at least this often while it keeps changing (a streaming answer, a busy chat): under 5 s
 MAX_NODES = 2000
 MAX_DOC_CHARS = 200_000
+TAIL_CHARS = 10_000  # of a VS Code chat panel (its newest messages are at the end): far more than a few seconds add
+TAIL_BUDGET_S = 1.0
 MAX_WINDOWS = 50  # windows whose seen-lines we remember
 MAX_SEEN_LINES = 20_000
 BROWSERS = {"chrome.exe", "msedge.exe", "brave.exe", "opera.exe", "vivaldi.exe"}
@@ -35,7 +38,8 @@ HAS_WORDS = re.compile(r"\w\w")
 WEBVIEW_ID = re.compile(r"^vscode-webview://.*?[?&]id=([\w-]+)")
 # Chat panel controls that read as text but aren't conversation.
 CHAT_NOISE = re.compile(r"^(Thought for \d+s|Copy response to clipboard|Show more|Show less|New session|"
-                        r"Queue another message…|Message input)$")
+                        r"Queue another message…|Message input|Copy code to clipboard|IN|OUT|Claude is working|"
+                        r"Remove from message|Bypass permissions|Stop|\d+[smh](?: \d+[smh])?)$")  # "59m": a timer
 
 
 def clean_lines(text: str) -> list[str]:
@@ -66,6 +70,9 @@ class WindowReader:
         )
         self.value_cache = self.uia.CreateCacheRequest()
         self.value_cache.AddProperty(U.UIA_ValueValuePropertyId)
+        self.name_cache = self.uia.CreateCacheRequest()
+        self.name_cache.AddProperty(U.UIA_NamePropertyId)
+        self.walker = self.uia.ControlViewWalker
         self.tree_cache = self.uia.CreateCacheRequest()
         for prop in (U.UIA_ControlTypePropertyId, U.UIA_NamePropertyId, U.UIA_ValueValuePropertyId,
                      U.UIA_IsPasswordPropertyId):
@@ -100,9 +107,41 @@ class WindowReader:
             seen_ids.add(match.group(1))
             pattern = doc.GetCurrentPattern(U.UIA_TextPatternId)
             if pattern:
-                text = pattern.QueryInterface(U.IUIAutomationTextPattern).DocumentRange.GetText(MAX_DOC_CHARS)
+                text = self._tail(doc, pattern.QueryInterface(U.IUIAutomationTextPattern))
                 parts.extend(line for line in text.splitlines() if not CHAT_NOISE.match(line.strip()))
         return "\n".join(parts)
+
+    def _tail(self, doc, pattern) -> str:
+        """The document's last paragraphs, about TAIL_CHARS of them (all of a short one), in order.
+
+        A chat keeps its newest messages at the end, and a long one (a day with Claude Code) runs far past a read
+        capped from the top. So walk back from the last element in small tree steps and read each paragraph met on
+        the way: every call stays a few ms, so the app never stalls. Whole-document reads and range moves by
+        characters or to the document's end cost time in proportion to the document: seconds, and on a long chat
+        VS Code stayed busy for tens of seconds after Recall had given up.
+        """
+        U, walker, cache = self.U, self.walker, self.name_cache
+        paragraphs, total, deadline = [], 0, time.monotonic() + TAIL_BUDGET_S
+        node = doc
+        while child := walker.GetLastChildElementBuildCache(node, cache):
+            node = child
+        while total < TAIL_CHARS and time.monotonic() < deadline:
+            name = node.CachedName
+            if name and not (paragraphs and name in paragraphs[-1]):  # else it's the rest of a paragraph already read
+                paragraph = pattern.RangeFromChild(node)
+                paragraph.ExpandToEnclosingUnit(U.TextUnit_Paragraph)
+                paragraphs.append(paragraph.GetText(TAIL_CHARS))
+                total += len(paragraphs[-1])
+            previous = walker.GetPreviousSiblingElementBuildCache(node, cache)
+            while not previous:
+                node = walker.GetParentElementBuildCache(node, cache)
+                if not node or self.uia.CompareElements(node, doc):
+                    return "\n".join(reversed(paragraphs))  # reached the start: the document is short
+                previous = walker.GetPreviousSiblingElementBuildCache(node, cache)
+            node = previous
+            while child := walker.GetLastChildElementBuildCache(node, cache):
+                node = child
+        return "\n".join(reversed(paragraphs))
 
     def _document_text(self, root) -> str:
         doc = root.FindFirst(self.U.TreeScope_Descendants, self.document)
