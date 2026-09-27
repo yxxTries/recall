@@ -36,6 +36,7 @@ def test_clean_title_drops_the_app_name():
                        "msedge.exe") == "Vector DBs - Pragmatic Engineer"
     assert clean_title("store.py - recall - Visual Studio Code", "code.exe") == "store.py - recall"
     assert clean_title("Daily Mix 1 - Spotify", "spotify.exe") == "Daily Mix 1"
+    assert clean_title("Webhooks guide - Profile 1 - Microsoft​ Edge", "msedge.exe") == "Webhooks guide"
 
 
 def test_subjects_are_workspaces_sites_and_windows():

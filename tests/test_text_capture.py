@@ -122,6 +122,44 @@ def test_a_long_chat_is_read_from_its_end_in_small_steps(tmp_path):
     print(f"tail read: {len(tail)} lines in {elapsed * 1000:.0f} ms")
 
 
+EDGE = Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe")
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(not EDGE.exists(), reason="needs Edge")
+def test_a_browser_is_read_for_its_page_never_its_own_ui(tmp_path):
+    """Before a browser's first read builds its page tree, only its own UI is there: a fresh Edge profile shows its
+    sync dialog (with the signed-in email) and, without any document, the tree holds tabs and toolbar buttons."""
+    page = tmp_path / "article.html"
+    page.write_text("<title>recall-test-article</title><h1>Idempotent webhooks</h1>" +
+                    "".join(f"<p>Note {i}: record each event id and skip ones already seen.</p>" for i in range(20)),
+                    encoding="utf-8")
+    profile = str(tmp_path / "profile")
+    subprocess.Popen([str(EDGE), f"--user-data-dir={profile}", "--no-first-run", "--no-default-browser-check",
+                      "--new-window", page.as_uri()])
+    reads = []
+    try:
+        assert wait_for(lambda: user32.FindWindowW(None, "recall-test-article - Profile 1 - Microsoft\u200b Edge") or
+                        user32.FindWindowW(None, "recall-test-article - Microsoft\u200b Edge"), timeout=20)
+        hwnd = user32.FindWindowW(None, "recall-test-article - Profile 1 - Microsoft\u200b Edge") or \
+            user32.FindWindowW(None, "recall-test-article - Microsoft\u200b Edge")
+        time.sleep(2)
+        reader = WindowReader()
+        for _ in range(4):  # the first read builds the page tree; the events that follow bring the next read
+            reads.append(clean_lines(reader.read(hwnd, "msedge.exe")[0]))
+            time.sleep(1.5)
+    finally:
+        for p in psutil.process_iter(["name", "cmdline"]):
+            try:
+                if p.info["name"] == "msedge.exe" and any(profile in a for a in p.info["cmdline"] or []):
+                    p.kill()
+            except psutil.Error:
+                pass
+    for lines in reads:
+        assert not lines or lines[0] == "Idempotent webhooks", lines[:5]  # the page, or nothing yet
+    assert "Note 19: record each event id and skip ones already seen." in reads[-1]
+
+
 class Pipeline:
     """ForegroundWatcher feeding TextCapture, as main.py wires them."""
 

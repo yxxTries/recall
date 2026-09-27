@@ -30,6 +30,7 @@ APP_NAMES = {"code.exe": "VS Code", "msedge.exe": "Edge", "chrome.exe": "Chrome"
 APP_SUFFIXES = {"visual studio code", "microsoft edge", "personal", "work", "google chrome", "mozilla firefox",
                 "microsoft teams", "discord", "slack", "zoom", "notepad"}
 SEPARATOR = re.compile(r"\s+[-|–—]\s+")
+EDGE_PROFILE = re.compile(r"profile \d+")  # Edge names an unnamed profile "Profile 1" in the title
 MORE_PAGES = re.compile(r"\s+and \d+ more pages?$")
 SPEAKER = re.compile(r"^([A-Z][a-z]+(?: [A-Z][a-z]+)?):\s+\S")  # "Priya: judging starts at 2pm"
 WITH_PERSON = re.compile(r"\bwith ([A-Z][a-z]+(?: [A-Z][a-z]+)?)")  # "Call with Sarah Lee"
@@ -53,7 +54,7 @@ def clean_title(title: str, app: str) -> str:
     while True:
         parts = list(SEPARATOR.finditer(title))
         tail = title[parts[-1].end():].strip().lower() if parts else ""
-        if not parts or (tail not in APP_SUFFIXES and tail != stem):
+        if not parts or (tail not in APP_SUFFIXES and tail != stem and not EDGE_PROFILE.fullmatch(tail)):
             break
         title = title[:parts[-1].start()]
     return MORE_PAGES.sub("", title).strip()
