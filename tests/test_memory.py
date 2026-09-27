@@ -122,6 +122,7 @@ def test_store_updates_activities_in_place_and_finds_them_by_words(store):
     assert store.search("the of and") == []
 
 
+@pytest.mark.integration
 def test_typed_text_is_searchable_within_5s(tmp_path):
     store = MemoryStore(tmp_path / "memory.db", device_id="test-device")
     worker = MemoryWorker(store)

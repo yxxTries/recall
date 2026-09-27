@@ -107,10 +107,12 @@ Nine phases take 44 of 48 hours, and the app is demo-able end to end at hour 19.
 
 With two or more people, one person builds Phase 5 (audio) on a branch during Phases 2–4 and merges it at the MVP gate.
 
+Order changed on 2026-09-26: after the M4 gate comes Phase 7 (cloud), then Phase 5 (audio), then Phase 6, because speech-to-text and search by meaning now run in the cloud.
+
 **Milestone routine**, run at every gate (PowerShell):
 
 ```powershell
-pytest -q
+pytest -q --integration
 python scripts/smoke.py
 python scripts/perf_monitor.py --minutes 10
 git add -A
@@ -260,8 +262,8 @@ Paused on 2026-09-26 for Phase 3.1. Already checked: the hotkey opens a focused 
 Every phase runs the same short loop, so the latest green tag on GitHub is always demo-able.
 
 1. Build the smallest slice that completes one checklist item.
-2. Run `pytest -q` and `python scripts/smoke.py` (under 60 s together).
-3. Commit when green. At a gate, also run the perf check, then push and tag.
+2. Run `pytest -q` (unit tests, about 1 s) and `python scripts/smoke.py`.
+3. Commit when green. At a gate, also run `pytest -q --integration` (real windows, audio and Node, about 35 s) and the perf check, then push and tag.
 4. A red gate blocks the next phase. If it's still red when its timebox ends, cut scope from the *Cut list*.
 
 **Test layers**

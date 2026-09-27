@@ -2,6 +2,8 @@
 import time
 import uuid
 
+import pytest
+
 from recall.capture.text_uia import TextCapture, clean_lines
 from recall.watcher import ForegroundWatcher
 from tests.helpers import EDIT_WINDOW, PYTHONW, edit_controls, focus, open_window, post_text, wait_for
@@ -39,6 +41,7 @@ class Pipeline:
         return [t for t in self.texts if needle in t["text"]]
 
 
+@pytest.mark.integration
 def test_typed_text_is_captured_once_within_3s():
     first = f"The launch codename is {uuid.uuid4().hex[:8]}"
     second = f"Budget review moved to {uuid.uuid4().hex[:8]}"
@@ -64,6 +67,7 @@ def test_typed_text_is_captured_once_within_3s():
     print(f"capture latency {latency:.2f} s, read {event['read_ms']} ms")
 
 
+@pytest.mark.integration
 def test_password_text_is_never_captured():
     secret = f"hunter2-{uuid.uuid4().hex[:8]}"
     visible = f"Visible note {uuid.uuid4().hex[:8]}"
@@ -80,6 +84,7 @@ def test_password_text_is_never_captured():
     assert not any(secret in t["text"] for t in p.texts)
 
 
+@pytest.mark.integration
 def test_untracked_window_is_never_read():
     note = f"Untracked note {uuid.uuid4().hex[:8]}"
     proc, hwnd = open_window(PYTHONW, "recall-test-untracked", EDIT_WINDOW)

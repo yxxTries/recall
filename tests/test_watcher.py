@@ -5,8 +5,12 @@ These tests briefly take the foreground; don't type while they run.
 import subprocess
 import time
 
+import pytest
+
 from recall.watcher import AudioWatcher, ForegroundWatcher
 from tests.helpers import PYTHON, PYTHONW, focus, open_window, wait_for
+
+pytestmark = pytest.mark.integration
 
 SILENCE = (
     "import io, wave, winsound; b = io.BytesIO(); w = wave.open(b, 'wb'); "

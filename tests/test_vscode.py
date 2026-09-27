@@ -76,6 +76,7 @@ def test_ingest_server_needs_the_token(tmp_path, monkeypatch):
     assert not (tmp_path / "ingest.json").exists()
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(not shutil.which("node"), reason="node not installed")
 def test_extension_js():
     result = subprocess.run(["node", "--test", "test/extension.test.js"], cwd=EXTENSION,
