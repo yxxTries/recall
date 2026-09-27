@@ -67,6 +67,8 @@ CLOUD (Supabase, private per user)
 - [x] Chats: the first read of a chat window sends only its latest 80 lines (history isn't what you did just now)
 - [x] Understanding: local times in the prompt; evidence grounded to the captured text word for word (a paraphrase becomes the line it paraphrases); people must be named in the text, and AI assistants aren't people
 - [x] Ask understands time: "today", "this afternoon", "yesterday", "tonight", "last week" become a local-time range (a day runs from 5 am, so "tonight" at 2 am is the evening before), and the answer is told that range
+- [x] Attribution: "You" lines are the user's; any other named author or speaker is someone else, even on a page about their work (a PR review had credited the author's reply to the user)
+- [x] 3 more scenarios (docs and code back and forth, a GitHub PR review, a Slack follow-up): 3/3 on every check
 - Result (Sep 27): segmentation 12/12, facts 24/24, forbidden claims 7/7, importance 14/14, secrets 2/2, thread linking 1/1, Ask answers 8/8, citations 7/7; evidence 36/38 and people 7/9 before the last two fixes, 12/12 evidence on the re-run
 
 **3. Phase 8 · Demo (MVP on text capture)**

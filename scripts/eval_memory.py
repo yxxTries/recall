@@ -229,6 +229,51 @@ def long_session(start):
     return session(start, "code.exe", "store.py - recall - Visual Studio Code", 0, 26 * 60) + out
 
 
+def docs_and_code(start):
+    """One task across two apps: Stripe's webhook docs in Chrome and the handler in VS Code, back and forth."""
+    docs = "Receive Stripe events in your webhook endpoint | Stripe Documentation - Google Chrome"
+    code = "webhooks.py - shop-api - Visual Studio Code"
+    doc_lines = [["Verify webhook signatures: use the Stripe-Signature header and your endpoint's signing secret."],
+                 ["Call stripe.Webhook.construct_event(payload, sig_header, endpoint_secret); it raises "
+                  "SignatureVerificationError when the signature doesn't match."],
+                 ["Return a 2xx status quickly, before any complex logic, or Stripe retries the event for up to 3 days."],
+                 ["Handle duplicate events: record processed event IDs and skip ones you've already seen."]]
+    code_lines = [["@app.post('/webhooks/stripe')", "async def stripe_webhook(request: Request):"],
+                  ["event = stripe.Webhook.construct_event(payload, request.headers['stripe-signature'], ENDPOINT_SECRET)"],
+                  ["if await seen_events.contains(event['id']):", "return Response(status_code=200)"],
+                  ["if event['type'] == 'checkout.session.completed':", "await fulfil_order(event['data']['object'])"]]
+    out = []
+    for i in range(4):
+        t = 180 * i
+        out += session(start, "chrome.exe", docs, t, t + 80)
+        out += reads(start, "chrome.exe", docs, "https://docs.stripe.com/webhooks", [doc_lines[i]], offset=t + 10)
+        out += session(start, "code.exe", code, t + 80, t + 180)
+        out += reads(start, "code.exe", code, f"vscode://file/C:/dev/shop-api/webhooks.py:{20 + 5 * i}", [code_lines[i]], offset=t + 95)
+    return out
+
+
+def github_review(start):
+    title = "Add rate limiting to /login by jkim · Pull Request #482 · acme/shop-api - Google Chrome"
+    page = [["Add rate limiting to /login #482", "jkim wants to merge 3 commits into main from jkim/login-rate-limit"],
+            ["Files changed 4", "+86 −12", "app/auth/limits.py", "LOGIN_ATTEMPTS = 5  # per 15 minutes per IP"],
+            ["Priya Raman commented: can we key this on the account too? An attacker rotating IPs gets around a per-IP limit."],
+            ["jkim replied: good call, I'll add a per-account bucket of 10 attempts per hour."],
+            ["You commented on limits.py line 14: the Redis key never expires, so a locked-out IP stays locked forever - set a TTL."],
+            ["Review changes", "Request changes", "Submit review"]]
+    return session(start, "chrome.exe", title, 0, 420) + reads(start, "chrome.exe", title, "https://github.com/acme/shop-api/pull/482",
+                                                               page, every=60, offset=10)
+
+
+def slack_followup(start):
+    title = "#platform | Acme - Slack - Google Chrome"
+    chat = [["Dana Wu: heads up, the Postgres 16 upgrade is scheduled for Saturday 6am UTC"],
+            ["Dana Wu: @you can you review the migration runbook by Friday? It's in the wiki under Platform/Upgrades"],
+            ["You: yes, I'll review it Thursday afternoon"],
+            ["Marcus Lee: I'll be on call during the upgrade window"]]
+    return session(start, "chrome.exe", title, 0, 300) + reads(start, "chrome.exe", title, "https://app.slack.com/client/T1/C2",
+                                                               chat, every=60, offset=15)
+
+
 # name, events builder, expected episodes, checks on the episode(s), Ask questions
 SCENARIOS = [
     dict(name="vscode", build=vscode_edit, episodes=1,
@@ -266,6 +311,16 @@ SCENARIOS = [
     dict(name="window-only", build=window_only, episodes=1, facts=[["checkout", "figma"]], importance=(1, 6), people=[]),
     dict(name="long", build=long_session, episodes=2, facts=[["rank", "search", "store"]], importance=(2, 8), people=[],
          same_thread=True),
+    dict(name="docs-and-code", build=docs_and_code, episodes=1, together=["Stripe", "webhooks.py"],
+         facts=[["webhook"], ["signature"], ["duplicate", "seen", "event id"]], importance=(4, 9), people=[],
+         ask=[("How does my Stripe webhook handler avoid processing an event twice?", [["seen", "duplicate", "id"]])]),
+    dict(name="github-review", build=github_review, episodes=1,
+         facts=[["rate limit"], ["ttl", "expire"], ["#482", "482", "pull request", "pr"]], importance=(4, 9),
+         people=["Priya", "jkim"], forbidden=["approved", "replied to priya", "added a per-account"],  # jkim's, not yours
+         ask=[("What did I ask for in the login rate limiting PR?", [["ttl", "expire"]])]),
+    dict(name="slack-followup", build=slack_followup, episodes=1,
+         facts=[["runbook"], ["friday", "thursday"], ["postgres", "upgrade"]], importance=(5, 9), people=["Dana", "Marcus"],
+         ask=[("What do I need to review before the Postgres upgrade?", [["runbook"]])]),
 ]
 
 
