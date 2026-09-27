@@ -66,6 +66,7 @@ CLOUD (Supabase, private per user)
 - [x] Episode text: lines that differ only in numbers or ids keep their first and last; prose outranks commands and JSON when over budget (a Claude Code chat went from 11,216 to 1,340 characters with every prose line kept)
 - [x] Chats: the first read of a chat window sends only its latest 80 lines (history isn't what you did just now)
 - [x] Understanding: local times in the prompt; evidence grounded to the captured text word for word (a paraphrase becomes the line it paraphrases); people must be named in the text, and AI assistants aren't people
+- [x] Ask understands time: "today", "this afternoon", "yesterday", "tonight", "last week" become a local-time range (a day runs from 5 am, so "tonight" at 2 am is the evening before), and the answer is told that range
 - Result (Sep 27): segmentation 12/12, facts 24/24, forbidden claims 7/7, importance 14/14, secrets 2/2, thread linking 1/1, Ask answers 8/8, citations 7/7; evidence 36/38 and people 7/9 before the last two fixes, 12/12 evidence on the re-run
 
 **3. Phase 8 · Demo (MVP on text capture)**

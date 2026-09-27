@@ -28,11 +28,34 @@ export const ANSWER_SCHEMA = {
   additionalProperties: false,
 }
 
+const HOUR = 3_600_000
+
+// "today", "this afternoon", "last night"... in the user's local time, as the UTC range to search.
+// A day runs from 5 am, so "tonight" asked at 2 am is still the evening before.
+export function timeRange(question: string, now: Date, utcOffsetMinutes: number): { since: string; until: string } | null {
+  const q = question.toLowerCase()
+  const offset = utcOffsetMinutes * 60_000
+  const local = new Date(now.getTime() + offset) // the local clock, read through the UTC getters
+  let today = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()) - offset + 5 * HOUR
+  if (local.getUTCHours() < 5) today -= 24 * HOUR
+  const range = (from: number, to: number) => ({ since: new Date(from).toISOString(), until: new Date(to).toISOString() })
+  if (/\bthis week\b|\bpast week\b|\blast 7 days\b/.test(q)) return range(today - 6 * 24 * HOUR, now.getTime())
+  if (/\blast week\b/.test(q)) return range(today - 13 * 24 * HOUR, today - 6 * 24 * HOUR)
+  const day = /\byesterday\b|\blast night\b/.test(q) ? today - 24 * HOUR : today
+  if (/\bmorning\b/.test(q)) return range(day, day + 7 * HOUR) // 5 am to noon
+  if (/\bafternoon\b/.test(q)) return range(day + 7 * HOUR, day + 13 * HOUR) // noon to 6 pm
+  if (/\bevening\b|\btonight\b|\blast night\b/.test(q)) return range(day + 12 * HOUR, day + 24 * HOUR) // 5 pm to 5 am
+  if (/\btoday\b|\byesterday\b/.test(q)) return range(day, day + 24 * HOUR)
+  return null
+}
+
 function local(iso: string, utcOffsetMinutes: number): string {
   return new Date(Date.parse(iso) + utcOffsetMinutes * 60_000).toISOString().slice(0, 16).replace('T', ' ')
 }
 
-export function askPrompt(question: string, episodes: Found[], now: string, utcOffsetMinutes: number): string {
+export function askPrompt(
+  question: string, episodes: Found[], now: string, utcOffsetMinutes: number, period?: { since?: string; until?: string } | null,
+): string {
   const blocks = episodes.map((e) =>
     [
       `episode_id: ${e.episode_id}`,
@@ -44,7 +67,12 @@ export function askPrompt(question: string, episodes: Found[], now: string, utcO
       e.evidence.length && `evidence: ${e.evidence.slice(0, 3).join(' | ')}`,
     ].filter(Boolean).join('\n')
   )
-  return `Now (local time): ${local(now, utcOffsetMinutes)}\n\n` +
+  // The range retrieval used, so the model doesn't redo "yesterday" its own way (a day here starts at 5 am).
+  const range = period?.since && period?.until
+    ? `The question is about ${local(period.since, utcOffsetMinutes)} to ${local(period.until, utcOffsetMinutes)} (local time); ` +
+      'these episodes are from that time.\n\n'
+    : ''
+  return `Now (local time): ${local(now, utcOffsetMinutes)}\n\n${range}` +
     `Episodes, most relevant first:\n\n${blocks.join('\n\n') || '(none found)'}\n\nQuestion: ${question}`
 }
 
