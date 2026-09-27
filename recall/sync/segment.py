@@ -1,15 +1,18 @@
 """Episode segmentation: split the capture stream where the task changes (no models).
 
 Events are grouped into 30-s windows. Each window becomes a 512-slot vector of its words (hashed,
-weighted by rarity) plus its app and subject (workspace, site, chat). Drift from the open episode
-feeds a CUSUM change detector: drift must stay high for about a minute before an episode ends,
-so an alt-tab doesn't split it, and the episode is cut where the drift began. Episodes also end
-after 5 idle minutes and at 20 minutes, so the cloud gets bounded input on time.
+weighted by rarity) and window-title words, plus its app and subject (workspace, site, chat). Drift
+from the open episode feeds a CUSUM change detector: drift must stay high for about a minute before
+an episode ends, so an alt-tab doesn't split it, and the episode is cut where the drift began,
+unless what came before is under 2 minutes (a search before the page it finds joins that task).
+Episodes also end after 5 idle minutes (while a tracked window stays in front, reading or watching
+without new text isn't idle, up to 20 minutes) and at 20 minutes, so the cloud gets bounded input on time.
 Each closed episode carries its exact app and window spans and its most distinctive new lines.
 Events must arrive in time order.
 """
 import hashlib
 import math
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
@@ -21,11 +24,13 @@ from recall.sync.sketch import WORD, SeenLines, WordRarity, hash64
 WINDOW = timedelta(seconds=30)
 IDLE = timedelta(minutes=5)
 MAX_EPISODE = timedelta(minutes=20)
+MIN_EPISODE = timedelta(minutes=2)
 DIM = 512
-TEXT_WEIGHT, APP_WEIGHT, SUBJECT_WEIGHT = 0.6, 0.4, 0.6
+TEXT_WEIGHT, APP_WEIGHT, SUBJECT_WEIGHT, TITLE_WEIGHT = 0.6, 0.4, 0.6, 1.0
 SLACK, THRESHOLD = 0.5, 0.8  # CUSUM: drift below SLACK is normal; the sum must pass THRESHOLD to cut
 MAX_CHARS = 12_000  # ~3k tokens of episode text, so a whole request fits Groq's 8K tokens per minute
 MIN_LINE = 3
+NUMBERED = re.compile(r"[\w./:\\-]*\d[\w./:\\-]*")  # tokens with a digit: counters, ids, paths, times
 
 
 def when(e: dict) -> datetime:
@@ -56,6 +61,7 @@ class Segmenter:
         self.current: Window | None = None
         self.cusum = 0.0
         self.rise: int | None = None  # index of the window where the CUSUM sum left zero
+        self.in_session = False  # a tracked window is in front (its session started and hasn't ended)
 
     def add(self, e: dict) -> list[dict]:
         """Take one capture or session event; returns the episodes it closed (usually none)."""
@@ -68,12 +74,14 @@ class Segmenter:
         self.current.events.append(e)
         if e["type"] == "text":
             self.rarity.add(e.get("text", ""))
-        return closed
+        elif e["type"] in ("session_start", "session_end"):
+            self.in_session = e["type"] == "session_start"
+        return useful(closed)
 
     def flush(self, now: datetime) -> list[dict]:
         """Close the episode if nothing happened for IDLE; call this on a timer too."""
         last = self.current.last if self.current else (self.windows[-1].last if self.windows else None)
-        if last is None or now - last <= IDLE:
+        if last is None or now - last <= (MAX_EPISODE if self.in_session else IDLE):
             return []
         return self.close()
 
@@ -83,7 +91,7 @@ class Segmenter:
         if self.windows:
             closed.append(self._episode(self.windows))
         self.windows, self.cusum, self.rise = [], 0.0, None
-        return closed
+        return useful(closed)
 
     def _vector(self, window: Window) -> np.ndarray:
         text, context = np.zeros(DIM), np.zeros(DIM)
@@ -93,6 +101,8 @@ class Segmenter:
             context[slot("subject:" + subject)] += SUBJECT_WEIGHT
             for word in WORD.findall(e.get("text", "").lower()):
                 text[slot(word)] += self.rarity.idf(word)
+            for word in set(WORD.findall(clean_title(e.get("title", ""), e.get("app", "")).lower())):
+                text[slot("title:" + word)] += TITLE_WEIGHT * self.rarity.idf(word)
         context /= len(window.events)
         norm = np.linalg.norm(text)
         vector = context + (TEXT_WEIGHT * text / norm if norm else 0)
@@ -111,8 +121,11 @@ class Segmenter:
             elif self.rise is None:
                 self.rise = len(self.windows)
             if self.cusum > THRESHOLD:
-                closed.append(self._episode(self.windows[:self.rise]))
-                self.windows, self.cusum, self.rise = self.windows[self.rise:], 0.0, None
+                head = self.windows[:self.rise]
+                if head[-1].last - head[0].start >= MIN_EPISODE:
+                    closed.append(self._episode(head))
+                    self.windows = self.windows[self.rise:]
+                self.cusum, self.rise = 0.0, None  # a lead-in under MIN_EPISODE joins the new task
         self.windows.append(window)
         if self.windows[-1].last - self.windows[0].start >= MAX_EPISODE:
             closed.append(self._episode(self.windows))
@@ -132,8 +145,13 @@ class Segmenter:
         }
 
     def _text(self, events: list[dict]) -> str:
-        """The episode's new lines, headed by app and window; if too long, the most distinctive ones."""
+        """The episode's new lines, headed by app and window; if too long, the most distinctive ones.
+
+        Runs of lines that differ only in numbers or ids (test output, logs, tool calls) keep their first
+        and last line. When over budget, prose outranks symbol-heavy lines like commands and JSON.
+        """
         lines = []  # (score, header, line)
+        templates: dict[str, list[int]] = {}  # line with numbers masked -> indexes into lines
         for e in events:
             if e["type"] != "text":
                 continue
@@ -144,10 +162,13 @@ class Segmenter:
                     continue
                 words = WORD.findall(line.lower())
                 score = sum(self.rarity.idf(w) for w in words) / math.sqrt(len(words) + 1)
-                lines.append((score, header, line))
+                symbols = sum(not (c.isalnum() or c.isspace()) for c in line) / len(line)
+                templates.setdefault(NUMBERED.sub("#", " ".join(line.split())), []).append(len(lines))
+                lines.append((score * (1 - min(2 * symbols, 0.8)), header, line))
+        repeats = {i for run in templates.values() for i in run[1:-1]}
         keep, size = set(), 0
         for i in sorted(range(len(lines)), key=lambda i: -lines[i][0]):
-            if size + len(lines[i][2]) + 1 > MAX_CHARS:
+            if i in repeats or size + len(lines[i][2]) + 1 > MAX_CHARS:
                 continue
             keep.add(i)
             size += len(lines[i][2]) + 1
@@ -159,6 +180,11 @@ class Segmenter:
                     last = header
                 out.append(line)
         return "\n".join(out)
+
+
+def useful(episodes: list[dict]) -> list[dict]:
+    """Drops episodes with nothing in them (only a session's end after an idle cut)."""
+    return [ep for ep in episodes if ep["spans"] or ep["text"]]
 
 
 def spans(events: list[dict]) -> list[dict]:

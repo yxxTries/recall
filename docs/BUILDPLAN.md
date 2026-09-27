@@ -51,14 +51,22 @@ CLOUD (Supabase, private per user)
 - [x] Connect Claude Code: `claude mcp add --transport http recall https://mcrzydsnovhpevzmcchr.supabase.co/functions/v1/mcp`, authenticate, approve
 - [x] Claude Code answers "what was I working on between X and Y?" with evidence (01:29 episode, via `get_timeline`)
 - [x] Send hotkey for the demo: `Ctrl+Alt+Esc` (Ctrl+Shift+Esc is Task Manager's) closes the open episode and uploads it; the upload starts understanding at once. Key press to understood episode: under 5 s
-- [ ] Push and tag `m7-cloud` (tagged locally)
+- [x] Push and tag `m7-cloud`
 - [x] Dashboard at https://recall-memory-yxxtries.vercel.app (`web/`, deployed with the Vercel CLI): sign in with your Recall account from any device, see everything stored, and **Ask** in plain words (`ask` function: meaning search, then Groq answers citing the episodes)
 
 **2. Finish Gate M4 (MVP checks)**
 
 - [ ] 5 minutes of real use, then find it
-- [ ] 30-minute perf run within budget
+- [ ] 30-minute perf run within budget: Sep 27 run averaged 0.01% CPU (max 0.59%), RAM max 138 MB, but capture was paused after 4 minutes, so the active-capture budget (under 3%) still needs a run while working
 - [ ] 60-second backup demo video
+
+**Memory accuracy** (`python scripts/eval_memory.py`: 12 realistic capture streams with known answers, through the real pipeline; `--local` checks the device side for free)
+
+- [x] Segmentation: search-then-answer stays one episode (title words count; a lead-in under 2 min joins the next task); reading or watching with no new text isn't idle while the window stays in front; no empty episodes
+- [x] Episode text: lines that differ only in numbers or ids keep their first and last; prose outranks commands and JSON when over budget (a Claude Code chat went from 11,216 to 1,340 characters with every prose line kept)
+- [x] Chats: the first read of a chat window sends only its latest 80 lines (history isn't what you did just now)
+- [x] Understanding: local times in the prompt; evidence grounded to the captured text word for word (a paraphrase becomes the line it paraphrases); people must be named in the text, and AI assistants aren't people
+- Result (Sep 27): segmentation 12/12, facts 24/24, forbidden claims 7/7, importance 14/14, secrets 2/2, thread linking 1/1, Ask answers 8/8, citations 7/7; evidence 36/38 and people 7/9 before the last two fixes, 12/12 evidence on the re-run
 
 **3. Phase 8 · Demo (MVP on text capture)**
 

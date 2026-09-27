@@ -14,6 +14,26 @@ def test_clean_lines_normalises_and_dedupes():
     assert clean_lines(text) == ["Hello world", "Second line!"]
 
 
+class FakeReader:
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+    def read(self, hwnd, app):
+        return self.text, ""
+
+
+def test_first_read_of_a_chat_sends_only_its_latest_lines():
+    history = "\n".join(f"message {i} about the release" for i in range(500))
+    for app, expected in (("ms-teams.exe", range(420, 500)), ("chrome.exe", range(500))):
+        texts = []
+        capture = TextCapture(texts.append)
+        session = {"hwnd": 1, "app": app, "title": "Release planning"}
+        capture._snapshot(FakeReader(history), session)
+        assert texts[0]["text"].splitlines() == [f"message {i} about the release" for i in expected], app
+        capture._snapshot(FakeReader(history + "\nmessage 500 about the release"), session)
+        assert texts[1]["text"] == "message 500 about the release"  # the skipped history counts as seen
+
+
 class Pipeline:
     """ForegroundWatcher feeding TextCapture, as main.py wires them."""
 

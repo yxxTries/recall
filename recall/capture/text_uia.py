@@ -27,6 +27,9 @@ MAX_WINDOWS = 50  # windows whose seen-lines we remember
 MAX_SEEN_LINES = 20_000
 BROWSERS = {"chrome.exe", "msedge.exe", "brave.exe", "opera.exe", "vivaldi.exe"}
 PRIVATE_MARKERS = ("InPrivate", "Incognito")
+# Chats keep their history on screen; the first read of one sends only its latest lines, the rest counts as seen.
+CHAT_APPS = {"code.exe", "ms-teams.exe", "slack.exe", "discord.exe", "whatsapp.exe", "telegram.exe", "signal.exe"}
+FIRST_READ_LINES = 80
 ADDRESS_BAR_NAME = "Address and search bar"  # Chrome and Edge, English UI
 HAS_WORDS = re.compile(r"\w\w")
 WEBVIEW_ID = re.compile(r"^vscode-webview://.*?[?&]id=([\w-]+)")
@@ -205,12 +208,15 @@ class TextCapture:
             return
         read_ms = (time.perf_counter() - started) * 1000
 
+        first = hwnd not in self._seen
         seen = self._seen.pop(hwnd, set())
         self._seen[hwnd] = seen  # most recently used last
         while len(self._seen) > MAX_WINDOWS:
             self._seen.popitem(last=False)
         lines = clean_lines(text)
         new = [line for line in lines if line not in seen]
+        if first and session["app"] in CHAT_APPS:
+            new = new[-FIRST_READ_LINES:]  # a chat's history is earlier work: only its latest messages are now
         if len(seen) + len(new) > MAX_SEEN_LINES:
             seen.clear()
         seen.update(lines)

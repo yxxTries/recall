@@ -129,3 +129,44 @@ def test_episode_has_spans_and_only_new_distinctive_text():
                    "text": "the drift window\nsomething new about slack"})
     [later] = segmenter.close()
     assert later["text"] == "## code.exe · segment.py - recall\nsomething new about slack"  # sent lines aren't resent
+
+
+def browse(s: float, title: str, url: str, text: str = "") -> dict:
+    return {"type": "text", "time": at(s), "app": "chrome.exe", "title": f"{title} - Google Chrome", "url": url, "text": text}
+
+
+def test_a_short_search_joins_the_page_it_finds():
+    segmenter = Segmenter()
+    events = [browse(0, "TypeError reading map - Google Search", "https://www.google.com/search",
+                     "TypeError: Cannot read properties of undefined (reading 'map')\nPeople also ask")]
+    events += [browse(60 + 40 * i, "reactjs - TypeError reading map - Stack Overflow", "https://stackoverflow.com/q/1",
+                      f"answer {i}: todos is undefined on the first render, initialise it with an empty list")
+               for i in range(8)]
+    episodes = [ep for e in events for ep in segmenter.add(e)] + segmenter.close()
+    assert len(episodes) == 1 and [s["title"][:17] for s in episodes[0]["spans"]] == ["TypeError reading", "reactjs - TypeErr"]
+
+
+def test_reading_or_watching_without_new_text_is_not_idle():
+    segmenter = Segmenter()
+    title = "lofi hip hop radio - YouTube - Google Chrome"
+    segmenter.add({"type": "session_start", "time": at(0), "app": "chrome.exe", "title": title})
+    segmenter.add(browse(5, "lofi hip hop radio - YouTube", "https://www.youtube.com/watch?v=1", "Lofi Girl"))
+    assert segmenter.flush(T0 + timedelta(minutes=12)) == []  # still in front: watching, not idle
+    [episode] = segmenter.add({"type": "session_end", "time": at(900), "app": "chrome.exe", "title": title}) + segmenter.close()
+    assert (episode["started"], episode["ended"]) == (at(0), at(900))
+    segmenter.add({"type": "session_start", "time": at(2000), "app": "chrome.exe", "title": title})
+    [away] = segmenter.flush(T0 + timedelta(seconds=2000) + MAX_EPISODE + timedelta(seconds=1))  # in front, but 20 min on
+    assert away["started"] == at(2000)
+    assert segmenter.add({"type": "session_end", "time": at(9000), "app": "chrome.exe", "title": title}) == []  # nothing left
+
+
+def test_numbered_repeats_keep_their_first_and_last_line():
+    segmenter = Segmenter()
+    task = TASKS[0]
+    lines = [f"tests/test_sync.py::test_case_{i:03d} PASSED   [{i:3d}%]" for i in range(100)]
+    segmenter.add({"type": "text", "time": at(0), "app": task["app"], "title": task["title"], "url": task["url"],
+                   "text": "\n".join(["cap the backoff at ten minutes", *lines])})
+    [episode] = segmenter.close()
+    kept = episode["text"].splitlines()[1:]
+    assert kept[:2] == ["cap the backoff at ten minutes", lines[0]] and len(kept) == 3
+    assert kept[2].startswith("tests/test_sync.py::test_case_09")  # the run's last (near-duplicates were never kept)

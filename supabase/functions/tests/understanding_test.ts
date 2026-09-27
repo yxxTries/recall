@@ -1,7 +1,9 @@
 // Unit tests for the cloud's understanding logic: npx deno test supabase/functions/tests
 import { assert, assertEquals, assertRejects, assertStringIncludes } from 'jsr:@std/assert@1'
 import { complete, LlmError, type Provider, providers } from '../_shared/llm.ts'
-import { DIGEST_SCHEMA, digestPrompt, EPISODE_SCHEMA, fallback, flagInstructions, parse, prompt } from '../_shared/understanding.ts'
+import {
+  DIGEST_SCHEMA, digestPrompt, EPISODE_SCHEMA, fallback, flagInstructions, groundEvidence, groundPeople, parse, prompt,
+} from '../_shared/understanding.ts'
 
 const raw = {
   episode_id: 'e1', device_id: 'a1b2c3d4e5', started: '2026-09-26T14:05:00+01:00', ended: '2026-09-26T14:19:00+01:00',
@@ -19,7 +21,8 @@ const good = {
 }
 
 Deno.test('the prompt carries timeline, previous episode, candidate threads and quoted text', () => {
-  const text = prompt(raw, spans, { worked_on: 'Coded', context: 'In recall.', ended: '2026-09-26T13:50:00+01:00' }, candidates)
+  const text = prompt(raw, spans, { worked_on: 'Coded', context: 'In recall.', ended: '2026-09-26T13:50:00+01:00' }, candidates, 60)
+  assertStringIncludes(text, 'Episode 2026-09-26 14:05 to 14:19 (local time)')
   assertStringIncludes(text, '- ms-teams.exe · Weekly sync, 14:05-14:17 (12 min)')
   assertStringIncludes(text, 'Previous episode (ended 2026-09-26 13:50): Coded In recall.')
   assertStringIncludes(text, 'thread 7: Vendor selection')
@@ -80,4 +83,30 @@ Deno.test('the digest prompt lists the day in local time', () => {
     worked_on: 'Weekly sync', important: ['decide by Friday'], importance: 7 }], 60)
   assertStringIncludes(text, '- 14:05-14:19 (importance 7) Weekly sync Important: decide by Friday')
   assertEquals(DIGEST_SCHEMA.required, ['summary', 'highlights'])
+})
+
+Deno.test('evidence is what the screen said: paraphrases become the line they paraphrase, inventions go', () => {
+  const text = '## ms-teams.exe · Release planning\nAisha Khan: thanks Ben. I\'ll own the release notes and send them on Monday.\n' +
+    'Ben Ortiz: the login redirect loop is mine.'
+  assertEquals(groundEvidence([
+    'Ben Ortiz: the login redirect loop is mine.', // verbatim
+    "Aisha Khan: I'll own the release notes and send them on Monday.", // trimmed: the full line instead
+    'figma.exe · Checkout flow v3, 14:05-14:15 (10 min)', // from the prompt's timeline, not the screen
+    'the login redirect loop is mine', // the same line again
+    '"Ben Ortiz: the login redirect loop is mine."', // wrapped in quotes: the same quote
+  ], text), [
+    'Ben Ortiz: the login redirect loop is mine.',
+    "Aisha Khan: thanks Ben. I'll own the release notes and send them on Monday.",
+    'the login redirect loop is mine',
+  ])
+})
+
+Deno.test('AI assistants are not people', () => {
+  const m = parse(JSON.stringify({ ...good, people: ['Claude', 'Sarah', 'GitHub Copilot'] }), candidates)
+  assertEquals(m.people, ['Sarah'])
+})
+
+Deno.test('people the text never names are dropped', () => {
+  assertEquals(groundPeople(['Aisha', 'Ben Ortiz', 'Sarah Lee', 'Priya'], 'Aisha Khan: morning. Ben Ortiz: 👍 · Release planning'),
+    ['Aisha', 'Ben Ortiz'])
 })

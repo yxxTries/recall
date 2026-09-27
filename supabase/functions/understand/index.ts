@@ -25,6 +25,9 @@ async function understand(db: SupabaseClient, job: Job, attempt: number) {
   const spans = (spanRows ?? []) as Span[]
   const { data: previous } = await db.from('episodes').select('worked_on, context, ended, thread_id')
     .eq('user_id', user).lt('started', raw.started).order('started', { ascending: false }).limit(1).maybeSingle()
+  const { data: device } = await db.from('devices').select('utc_offset_minutes')
+    .eq('user_id', user).eq('device_id', raw.device_id).maybeSingle()
+  const source = { text: raw.text, titles: spans.map((s) => s.title) }
 
   const draft = await embed(`${spans.map((s) => s.title).join('. ')}\n${raw.text}`)
   const since = new Date(Date.parse(raw.started) - THREAD_WINDOW_DAYS * 86_400_000).toISOString()
@@ -37,15 +40,16 @@ async function understand(db: SupabaseClient, job: Job, attempt: number) {
   if (attempt > MAX_ATTEMPTS) {
     memory = fallback(spans)
   } else {
-    const messages = [{ role: 'system', content: SYSTEM }, { role: 'user', content: prompt(raw, spans, previous, candidates) }]
+    const text = prompt(raw, spans, previous, candidates, device?.utc_offset_minutes ?? 0)
+    const messages = [{ role: 'system', content: SYSTEM }, { role: 'user', content: text }]
     let reply = await complete(providers(), messages, EPISODE_SCHEMA)
     try {
-      memory = parse(reply.content, candidates)
+      memory = parse(reply.content, candidates, source)
     } catch (e) { // one retry, telling the model what was wrong
       messages.push({ role: 'assistant', content: reply.content },
         { role: 'user', content: `That was not valid (${(e as Error).message}). Answer again with JSON matching the schema.` })
       reply = await complete(providers(), messages, EPISODE_SCHEMA)
-      memory = parse(reply.content, candidates)
+      memory = parse(reply.content, candidates, source)
     }
     provider = reply.provider
     remaining = reply.remainingTokens
