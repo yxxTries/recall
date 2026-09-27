@@ -78,7 +78,7 @@ CLOUD (Supabase, private per user)
 - [x] A window that never goes quiet (a streaming answer, a busy chat) is read every 4 s, not 10: median 1.85 s, max 3.8 s
 - [x] VS Code chat panels are read from their end. Past 200K characters (a few hours of Claude Code) the newest messages were never captured, and each read blocked VS Code for 107–270 ms; now the newest ~10K characters in calls of a few ms (~265 ms in all)
 - [x] A local file in a browser (`C:/Users/me/lease.pdf`) is its own subject; every local page and PDF had merged into one activity called "c"
-- [ ] Ask right after a send can answer "busy": understanding and the answer share Groq's 8K tokens a minute, and a 429 isn't retried
+- [x] Ask right after a send no longer answers "busy": understanding and the answer share Groq's 8K tokens a minute, so a 429 that clears within 12 s is waited out and retried once (a longer one still fails over)
 - Result (Sep 27): line on screen to captured 1.53 s (Chrome chat), 1.41 s (native editor), 1.61 s (VS Code); Recall at most 0.7% of one core and 56 MB; unit and integration suites pass. Demo path on a throwaway account: send → uploaded 1.5 s → understood 2.8 s later → paraphrase search and MCP `search_memory` hit within 2 s; about 65 s including a minute of work
 
 **3. Phase 8 · Demo (MVP on text capture)**
