@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Recall Memory</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 22'%3E%3Ccircle cx='11' cy='11' r='8' fill='none' stroke='%230b6e78' stroke-width='3'/%3E%3Ccircle cx='11' cy='11' r='3' fill='%230b6e78'/%3E%3C/svg%3E">
-<meta name="description" content="Your Recall cloud memory: ask it questions and see everything it stores.">
+<meta name="description" content="Your Recall memory from every device: ask it anything and see everything it stores.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap">
@@ -76,6 +76,7 @@ button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .muted { color: var(--muted); }
+.small { font-size: 12px; }
 .label { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
 
 /* top bar */
@@ -84,7 +85,7 @@ button { cursor: pointer; }
 .mark svg { flex: none; }
 .bar .who { margin-left: auto; display: flex; align-items: center; gap: 12px; min-width: 0; }
 .bar .who span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 14px; }
-.link-btn { background: none; border: 0; padding: 4px 0; color: var(--accent); font-weight: 500; }
+.link-btn { background: none; border: 0; padding: 4px 0; color: var(--accent); font-weight: 500; justify-self: start; }
 
 /* sign in */
 .signin { max-width: 380px; margin: 12vh auto 0; display: grid; gap: 18px; }
@@ -94,11 +95,13 @@ button { cursor: pointer; }
 .field input { padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 .primary { padding: 10px 16px; border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-ink); font-weight: 600; }
 .primary:disabled { opacity: .6; cursor: default; }
+.secondary { padding: 7px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-weight: 500; }
 .error { color: var(--danger); font-size: 14px; }
 
 /* ask */
 .ask { margin-block: 28px 8px; display: grid; gap: 14px; }
 .ask h1 { font: 500 clamp(26px, 4vw, 34px)/1.15 var(--serif); }
+.sub { margin: 6px 0 0; color: var(--muted); }
 .askbox { display: flex; gap: 8px; flex-wrap: wrap; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
 .askbox input { flex: 1 1 260px; min-width: 0; border: 0; background: none; padding: 8px 10px; font-size: 16px; }
 .askbox input:focus-visible { outline: none; }
@@ -107,23 +110,31 @@ button { cursor: pointer; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 4px 12px; font-size: 13px; color: var(--muted); }
 .chip:hover { color: var(--ink); border-color: var(--muted); }
+#answer { display: grid; gap: 18px; }
+.turn { display: grid; gap: 10px; }
+.turn + .turn { border-top: 1px solid var(--line); padding-top: 18px; }
+.q { margin: 0; font-weight: 600; }
 .answer { border-left: 3px solid var(--accent); padding: 4px 0 4px 16px; display: grid; gap: 12px; }
-.answer p { margin: 0; font: 400 19px/1.5 var(--serif); max-width: 65ch; }
-.answer .cites { display: grid; gap: 8px; }
-.cite { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; align-items: baseline; font-size: 14px; }
-.cite .mono { font-size: 12px; color: var(--muted); }
+.answer p, .answer li { margin: 0; font: 400 19px/1.5 var(--serif); max-width: 65ch; }
+.answer ul { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.scope { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tag { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.cites { display: grid; gap: 0; }
+.cites > .label { padding-bottom: 4px; }
 
 /* summary strip */
-.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin-block: 28px; }
-.stat { background: var(--surface); padding: 14px 16px; display: grid; gap: 2px; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin-block: 28px 0; }
+.stat { background: var(--surface); padding: 14px 16px; display: grid; gap: 2px; align-content: start; }
 .stat b { font: 500 24px/1.2 var(--mono); font-variant-numeric: tabular-nums; }
-.stat.attn b { color: var(--warn); }
+.notice { margin: 10px 0 0; font-size: 14px; color: var(--warn); }
 
 /* tabs */
-.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; overflow-y: hidden; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; overflow-y: hidden; margin-top: 28px; }
 .tab { border: 0; background: none; padding: 10px 12px; color: var(--muted); font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
 .tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
 .panel { padding-block: 8px 48px; }
+.toolbar { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+.toolbar select { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 5px 8px; }
 .day { margin-top: 22px; }
 .day > .label { padding-bottom: 6px; border-bottom: 1px solid var(--line); display: block; }
 
@@ -134,8 +145,9 @@ button { cursor: pointer; }
 .row > button:hover .what { color: var(--accent); }
 .row .when { white-space: nowrap; font: 13px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
 .row .what { font-weight: 500; }
-.apps { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
-.app { font: 12px var(--mono); padding: 1px 8px; border-radius: 999px; background: var(--sunk); color: var(--muted); }
+.meta, .apps { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; }
+.app { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--sunk); color: var(--muted); }
+.device { font-size: 12px; padding: 0 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink); white-space: nowrap; }
 .pill { font-size: 12px; padding: 1px 8px; border-radius: 999px; font-weight: 500; }
 .pill.wait { background: var(--warn-soft); color: var(--warn); }
 .pill.done { background: var(--accent-soft); color: var(--accent); }
@@ -152,13 +164,22 @@ pre.raw { white-space: pre-wrap; word-break: break-word; font: 12.5px/1.55 var(-
 .card-list { display: grid; gap: 12px; margin-top: 16px; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: grid; gap: 6px; }
 .card h3 { font-size: 16px; font-weight: 600; }
+.card p { margin: 0; }
+.card-head { all: unset; cursor: pointer; display: grid; gap: 6px; }
+.card-head:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
+.card-head:hover h3 { color: var(--accent); }
+.more { color: var(--accent); font-size: 13px; font-weight: 500; }
+.card .row:last-child { border-bottom: 0; }
+.rename { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 4px; }
+.rename input { flex: 1 1 200px; min-width: 0; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
 .foot { padding-block: 24px 40px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
 
 @media (max-width: 640px) {
   .row > button { grid-template-columns: 1fr; gap: 4px; }
-  .apps { justify-content: flex-start; }
+  .meta, .apps { justify-content: flex-start; }
   .detail { padding-left: 4px; }
   .bar .who span { display: none; }
+  .answer p, .answer li { font-size: 17px; }
 }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
 </style>
@@ -186,7 +207,10 @@ pre.raw { white-space: pre-wrap; word-break: break-word; font: 12.5px/1.55 var(-
 
   <main id="app" hidden>
     <section class="ask">
-      <h1>Ask your memory</h1>
+      <div>
+        <h1>Ask your memory</h1>
+        <p class="sub" id="where"></p>
+      </div>
       <form class="askbox" id="ask-form">
         <input id="ask-q" aria-label="Question" placeholder="What was I working on this afternoon?" autocomplete="off" maxlength="500">
         <select id="ask-range" aria-label="Time range">
@@ -198,9 +222,11 @@ pre.raw { white-space: pre-wrap; word-break: break-word; font: 12.5px/1.55 var(-
       </form>
       <div class="chips" id="suggest"></div>
       <div id="answer" aria-live="polite"></div>
+      <button class="link-btn" id="ask-new" type="button" hidden>New conversation</button>
     </section>
 
     <div class="stats" id="stats"></div>
+    <p class="notice" id="waiting" hidden></p>
 
     <nav class="tabs" role="tablist" id="tabs"></nav>
     <section class="panel" id="panel"></section>
@@ -225,6 +251,7 @@ function h(tag, attrs, ...kids) {
     if (v == null || v === false) continue
     if (k.startsWith('on')) el.addEventListener(k.slice(2), v)
     else if (k === 'class') el.className = v
+    else if (k === 'value') el.value = v
     else el.setAttribute(k, v === true ? '' : v)
   }
   for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid instanceof Node ? kid : String(kid))
@@ -233,11 +260,30 @@ function h(tag, attrs, ...kids) {
 
 const time = (iso) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 const dayName = (iso) => new Date(iso).toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })
-const stamp = (iso) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-const appName = (a) => a.replace(/\.exe$/i, '')
-const apps = (list) => h('span', { class: 'apps' }, (list || []).map((a) => h('span', { class: 'app' }, appName(a))))
+const stamp = (iso) => new Date(iso).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+function ago(iso) {
+  const minutes = Math.round((Date.now() - Date.parse(iso)) / 60000)
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes} min ago`
+  if (minutes < 24 * 60) return `${Math.round(minutes / 60)} h ago`
+  return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' })
+}
 
+// Apps by the names people use for them (Ask names them the same way).
+const APPS = {
+  'code.exe': 'VS Code', 'cursor.exe': 'Cursor', 'msedge.exe': 'Edge', 'chrome.exe': 'Chrome', 'firefox.exe': 'Firefox',
+  'ms-teams.exe': 'Teams', 'teams.exe': 'Teams', 'zoom.exe': 'Zoom', 'slack.exe': 'Slack', 'discord.exe': 'Discord',
+  'outlook.exe': 'Outlook', 'olk.exe': 'Outlook', 'winword.exe': 'Word', 'excel.exe': 'Excel', 'powerpnt.exe': 'PowerPoint',
+  'figma.exe': 'Figma', 'notion.exe': 'Notion', 'obsidian.exe': 'Obsidian', 'notepad.exe': 'Notepad',
+  'windowsterminal.exe': 'Terminal', 'explorer.exe': 'File Explorer', 'spotify.exe': 'Spotify',
+}
+const appName = (a) => APPS[a.toLowerCase()] || a.replace(/\.exe$/i, '')
+const apps = (list) => (list || []).map((a) => h('span', { class: 'app' }, appName(a)))
+
+// One memory, many devices: each is shown by the name you gave it, else the computer's name.
 let devices = {}
+const many = () => Object.keys(devices).length > 1
+const device = (id) => (many() ? h('span', { class: 'device' }, devices[id] || 'Other device') : null)
 
 // ---------- sign in ----------
 async function show(session) {
@@ -263,10 +309,26 @@ db.auth.onAuthStateChange((event, session) => {
   if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'INITIAL_SESSION') setTimeout(() => show(session), 0)
 })
 
-// ---------- ask ----------
-const SUGGESTIONS = ['What was I working on today?', 'What did I decide recently?', 'Which files did I edit in VS Code?', 'What should I follow up on?']
-$('suggest').append(...SUGGESTIONS.map((q) => h('button', { class: 'chip', type: 'button', onclick: () => { $('ask-q').value = q; ask() } }, q)))
+// ---------- ask: a conversation with your memory ----------
+const PLACEHOLDER = 'What was I working on this afternoon?'
+let history = [] // the last few questions and answers: a follow-up keeps its context
+
+function suggestions() {
+  const other = many() ? Object.values(devices)[1] : null
+  const questions = ['What did I do today?', other ? `What did I do on ${other} yesterday?` : 'What did I do yesterday?',
+    'How long was I in VS Code this week?', 'What should I follow up on?']
+  $('suggest').replaceChildren(...questions.map((q) => h('button', { class: 'chip', type: 'button', onclick: () => { $('ask-q').value = q; ask() } }, q)))
+}
+
 $('ask-form').addEventListener('submit', (e) => { e.preventDefault(); ask() })
+$('ask-new').addEventListener('click', () => {
+  history = []
+  $('answer').replaceChildren()
+  $('ask-new').hidden = true
+  $('suggest').hidden = false
+  $('ask-q').placeholder = PLACEHOLDER
+  $('ask-q').focus()
+})
 
 function since(range) {
   const d = new Date()
@@ -275,30 +337,68 @@ function since(range) {
   return undefined
 }
 
+// Answers are plain text; lines that start with "- " are a list.
+function prose(text) {
+  const out = []
+  let list = null
+  for (const line of text.split('\n').map((l) => l.trim()).filter(Boolean)) {
+    if (line.startsWith('- ')) {
+      if (!list) out.push(list = h('ul', {}))
+      list.append(h('li', {}, line.slice(2)))
+    } else {
+      list = null
+      out.push(h('p', {}, line))
+    }
+  }
+  return out
+}
+
+// What the answer looked through: a period and a device, when the question named them.
+function scope(period) {
+  const tags = []
+  if (period?.since) tags.push(`${stamp(period.since)} – ${!period.until || Date.parse(period.until) >= Date.now() ? 'now' : stamp(period.until)}`)
+  if (period?.device) tags.push(`on ${period.device}`)
+  return tags.length ? h('div', { class: 'scope' }, h('span', { class: 'label' }, 'Looked at'), tags.map((t) => h('span', { class: 'tag' }, t))) : null
+}
+
+async function rowsFor(ids) {
+  if (!ids?.length) return []
+  const rows = check(await db.from('episodes').select(EPISODE_FIELDS).in('episode_id', ids))
+  return rows.sort((a, b) => Date.parse(a.started) - Date.parse(b.started))
+}
+
 async function ask() {
   const question = $('ask-q').value.trim()
   if (!question) return $('ask-q').focus()
-  const out = $('answer')
-  out.replaceChildren(h('p', { class: 'muted' }, 'Looking through your memory…'))
+  const turn = h('div', { class: 'turn' }, h('p', { class: 'q' }, question), h('p', { class: 'muted' }, 'Looking through your memory…'))
+  $('answer').append(turn)
+  $('ask-q').value = ''
   $('ask-go').disabled = true
+  $('suggest').hidden = true
   const { data, error } = await db.functions.invoke('ask', {
-    body: { question, since: since($('ask-range').value), utc_offset_minutes: -new Date().getTimezoneOffset() },
+    body: { question, since: since($('ask-range').value), utc_offset_minutes: -new Date().getTimezoneOffset(), history },
   })
-  $('ask-go').disabled = false
+  let reply = data
   if (error) {
-    let message = 'Could not reach your memory. Check your connection and try again.'
-    try { message = (await error.context.json()).error || message } catch {}
-    return out.replaceChildren(h('p', { class: 'error' }, message))
+    try { reply = await error.context.json() } catch { reply = {} }
   }
-  const byId = Object.fromEntries(data.episodes.map((e) => [e.episode_id, e]))
-  const cited = data.cited.map((id) => byId[id]).filter(Boolean)
-  out.replaceChildren(h('div', { class: 'answer' },
-    h('p', {}, data.answer),
+  $('ask-go').disabled = false
+  $('ask-new').hidden = false
+  if (!reply?.answer) {
+    const related = await rowsFor((reply?.episodes || []).slice(0, 5).map((e) => e.episode_id)).catch(() => [])
+    turn.replaceChildren(h('p', { class: 'q' }, question),
+      h('p', { class: 'error' }, reply?.error || 'Could not reach your memory. Check your connection and try again.'),
+      related.length ? h('div', { class: 'cites' }, h('span', { class: 'label' }, 'Related memories'), related.map(episodeRow)) : null)
+    return
+  }
+  history = [...history, { question, answer: reply.answer }].slice(-3)
+  const cited = await rowsFor(reply.cited).catch(() => [])
+  turn.replaceChildren(h('p', { class: 'q' }, question), h('div', { class: 'answer' }, ...prose(reply.answer), scope(reply.period),
     cited.length ? h('div', { class: 'cites' },
-      h('span', { class: 'label' }, cited.length === 1 ? 'From this episode' : `From these ${cited.length} episodes`),
-      cited.map((e) => h('div', { class: 'cite' },
-        h('span', { class: 'mono' }, `${stamp(e.started)}–${time(e.ended)}`),
-        h('span', {}, e.worked_on)))) : null))
+      h('span', { class: 'label' }, cited.length === 1 ? 'From this memory' : `From these ${cited.length} memories`),
+      cited.map(episodeRow)) : null))
+  $('ask-q').placeholder = 'Ask a follow-up…'
+  $('ask-q').focus()
 }
 
 // ---------- what's stored ----------
@@ -310,29 +410,36 @@ const count = async (table, filter) => {
 }
 
 async function load() {
-  const [{ data: devs }, episodes, waiting, raw, threads, digests] = await Promise.all([
-    db.from('devices').select('device_id, name, first_seen, last_seen').order('last_seen', { ascending: false }),
-    count('episodes'), count('raw_episodes', (q) => q.is('understood', null)), count('raw_episodes'),
-    count('threads'), count('digests'),
+  const [{ data: devs }, memories, waiting, projects, { data: last }] = await Promise.all([
+    db.from('devices').select('device_id, name, label, first_seen, last_seen').order('last_seen', { ascending: false }),
+    count('episodes'), count('raw_episodes', (q) => q.is('understood', null)), count('threads'),
+    db.from('episodes').select('ended, device_id').order('ended', { ascending: false }).limit(1),
   ])
-  devices = Object.fromEntries((devs || []).map((d) => [d.device_id, d.name || d.device_id.slice(0, 8)]))
+  devices = Object.fromEntries((devs || []).map((d) => [d.device_id, d.label || d.name || d.device_id.slice(0, 8)]))
+  const names = Object.values(devices)
+  $('where').textContent = names.length
+    ? `Everything Recall remembers from ${names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0]}. Ask in plain words; follow-ups keep the context.`
+    : 'Ask in plain words once Recall has sent something from one of your devices.'
+  const latest = last?.[0]
   $('stats').replaceChildren(
-    stat('Episodes understood', episodes),
-    stat('Waiting to be understood', waiting, waiting > 0),
-    stat('Raw text held', raw),
-    stat('Threads', threads),
-    stat('Daily digests', digests),
-    stat('Devices', (devs || []).length))
+    stat('Memories', memories),
+    stat('Devices', names.length),
+    stat('Projects', projects),
+    stat('Last memory', latest ? ago(latest.ended) : '—', latest && many() ? `on ${devices[latest.device_id]}` : null))
+  $('waiting').hidden = !waiting
+  $('waiting').textContent = `${waiting} more ${waiting === 1 ? 'is' : 'are'} being understood; ${waiting === 1 ? 'it appears' : 'they appear'} here within a minute.`
+  suggestions()
   tabs.Devices = () => devicesPanel(devs || [])
   if (linked()) current = 'Timeline'
   renderTabs()
 }
 
-function stat(label, n, attention) {
-  return h('div', { class: attention ? 'stat attn' : 'stat' }, h('span', { class: 'label' }, label), h('b', {}, n.toLocaleString()))
+function stat(label, value, note) {
+  return h('div', { class: 'stat' }, h('span', { class: 'label' }, label),
+    h('b', {}, typeof value === 'number' ? value.toLocaleString() : value), note ? h('span', { class: 'muted small' }, note) : null)
 }
 
-const tabs = { Timeline: timeline, Threads: threadsPanel, Digests: digestsPanel, Devices: null, 'Raw text': rawPanel }
+const tabs = { Timeline: timeline, Projects: projectsPanel, 'Daily digests': digestsPanel, Devices: null, 'Raw text': rawPanel }
 let current = 'Timeline'
 try { current = localStorage.getItem('recall-tab') || current } catch {}
 
@@ -343,7 +450,7 @@ function renderTabs() {
     onclick: () => { current = name; try { localStorage.setItem('recall-tab', name) } catch {} renderTabs() },
   }, name)))
   $('panel').replaceChildren(h('p', { class: 'muted' }, 'Loading…'))
-  tabs[current]().then((nodes) => $('panel').replaceChildren(...[nodes].flat()))
+  tabs[current]().then((nodes) => $('panel').replaceChildren(...[nodes].flat().filter(Boolean)))
     .catch((e) => $('panel').replaceChildren(h('p', { class: 'error' }, `Could not load this: ${e.message}`)))
 }
 
@@ -352,25 +459,32 @@ function check({ data, error }) {
   return data
 }
 
-const EPISODE_FIELDS = 'episode_id, device_id, started, ended, apps, worked_on, context, actions, important, people, evidence, importance'
+const EPISODE_FIELDS = 'episode_id, device_id, started, ended, apps, worked_on, context, actions, important, people, evidence, importance, thread_id'
 const linked = () => decodeURIComponent(location.hash.slice(1)) // Recall's search window opens an episode as /#<episode_id>
+let onDevice = '' // the timeline's device filter
 
 async function timeline() {
-  const rows = check(await db.from('episodes').select(EPISODE_FIELDS).order('started', { ascending: false }).limit(150))
+  let q = db.from('episodes').select(EPISODE_FIELDS).order('started', { ascending: false }).limit(150)
+  if (onDevice) q = q.eq('device_id', onDevice)
+  const rows = check(await q)
   if (linked() && !rows.some((e) => e.episode_id === linked())) {
     const older = check(await db.from('episodes').select(EPISODE_FIELDS).eq('episode_id', linked()))
     rows.push(...older)
   }
-  if (!rows.length) return h('p', { class: 'empty' },
-    'Nothing understood yet. Tick an app under Tracked apps in Recall\'s tray, then press Ctrl+Alt+Esc to send what you\'re doing.')
+  const filter = many() ? h('div', { class: 'toolbar' }, h('label', { class: 'label', for: 'on-device' }, 'Show'),
+    h('select', { id: 'on-device', onchange: (e) => { onDevice = e.target.value; renderTabs() } },
+      h('option', { value: '' }, 'All devices'),
+      Object.entries(devices).map(([id, name]) => h('option', { value: id, selected: id === onDevice }, name)))) : null
+  if (!rows.length) return [filter, h('p', { class: 'empty' },
+    'Nothing understood yet. Tick an app under Tracked apps in Recall\'s tray, then press Ctrl+Alt+Esc to send what you\'re doing.')]
   const days = new Map()
   for (const e of rows) {
     const key = new Date(e.started).toDateString()
     if (!days.has(key)) days.set(key, [])
     days.get(key).push(e)
   }
-  return [...days.values()].map((list) => h('div', { class: 'day' },
-    h('span', { class: 'label' }, dayName(list[0].started)), list.map(episodeRow)))
+  return [filter, ...[...days.values()].map((list) => h('div', { class: 'day' },
+    h('span', { class: 'label' }, dayName(list[0].started)), list.map(episodeRow)))]
 }
 
 function episodeRow(e) {
@@ -389,13 +503,13 @@ function episodeRow(e) {
   const button = h('button', { type: 'button', 'aria-expanded': 'false', onclick: toggle },
     h('span', { class: 'when' }, `${time(e.started)}–${time(e.ended)}`),
     h('span', { class: 'what' }, e.worked_on),
-    apps(e.apps))
+    h('span', { class: 'meta' }, device(e.device_id), apps(e.apps)))
   detail.append(
     e.context ? h('p', {}, e.context) : null,
     list('Actions', e.actions), list('Important', e.important),
     e.people?.length ? section('People', h('p', {}, e.people.join(', '))) : null,
     e.evidence?.length ? section('Evidence from your screen', e.evidence.map((q) => h('blockquote', {}, q))) : null,
-    h('p', { class: 'muted mono', style: 'font-size:12px' }, `${devices[e.device_id] || 'device'} · importance ${e.importance}/10 · ${e.episode_id}`))
+    h('p', { class: 'muted small' }, `${dayName(e.started)} on ${devices[e.device_id] || 'a device'} · importance ${e.importance}/10`))
   const row = h('div', { class: 'row' }, button, detail)
   if (e.episode_id === linked()) {
     toggle()
@@ -407,31 +521,68 @@ function episodeRow(e) {
 const section = (title, ...body) => h('div', {}, h('div', { class: 'label' }, title), ...body)
 const list = (title, items) => items?.length ? section(title, h('ul', {}, items.map((i) => h('li', {}, i)))) : null
 
-async function threadsPanel() {
+// Projects (threads): the same work, linked across days and devices as it's understood.
+async function projectsPanel() {
   const rows = check(await db.from('threads').select('id, title, summary, started, ended, episodes')
     .order('ended', { ascending: false }).limit(50))
-  if (!rows.length) return h('p', { class: 'empty' }, 'No threads yet. Episodes about the same work are linked into a thread as they\'re understood.')
-  return h('div', { class: 'card-list' }, rows.map((t) => h('div', { class: 'card' },
-    h('h3', {}, t.title),
-    t.summary ? h('p', { style: 'margin:0' }, t.summary) : null,
-    h('span', { class: 'muted mono', style: 'font-size:12px' },
-      `${t.episodes} episode${t.episodes === 1 ? '' : 's'} · ${stamp(t.started)} to ${stamp(t.ended)}`))))
+  if (!rows.length) return h('p', { class: 'empty' }, 'No projects yet. Memories about the same work, on any device, are linked into a project as they\'re understood.')
+  return h('div', { class: 'card-list' }, rows.map((t) => {
+    const episodes = h('div', { hidden: true })
+    let loaded = false
+    const toggle = async () => {
+      episodes.hidden = !episodes.hidden
+      head.setAttribute('aria-expanded', String(!episodes.hidden))
+      head.querySelector('.more').textContent = episodes.hidden ? 'Show memories' : 'Hide'
+      if (loaded || episodes.hidden) return
+      loaded = true
+      episodes.append(...check(await db.from('episodes').select(EPISODE_FIELDS).eq('thread_id', t.id)
+        .order('started', { ascending: false })).map(episodeRow))
+    }
+    const head = h('button', { class: 'card-head', type: 'button', 'aria-expanded': 'false', onclick: toggle },
+      h('h3', {}, t.title),
+      t.summary ? h('p', {}, t.summary) : null,
+      h('span', { class: 'muted small' },
+        `${t.episodes} ${t.episodes === 1 ? 'memory' : 'memories'} · ${stamp(t.started)} to ${stamp(t.ended)}`),
+      h('span', { class: 'more' }, 'Show memories'))
+    return h('div', { class: 'card' }, head, episodes)
+  }))
 }
 
 async function digestsPanel() {
   const rows = check(await db.from('digests').select('day, summary, highlights').order('day', { ascending: false }).limit(30))
-  if (!rows.length) return h('p', { class: 'empty' }, 'No daily digests yet. A day is summarized after 3 am the next morning.')
+  if (!rows.length) return h('p', { class: 'empty' }, 'No daily digests yet. Each day is summarized after 3 am the next morning.')
   return h('div', { class: 'card-list' }, rows.map((d) => h('div', { class: 'card' },
     h('h3', {}, new Date(`${d.day}T12:00:00`).toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })),
-    h('p', { style: 'margin:0' }, d.summary),
+    h('p', {}, d.summary),
     d.highlights?.length ? h('ul', { style: 'margin:0;padding-left:18px' }, d.highlights.map((x) => h('li', {}, x))) : null)))
 }
 
+// Devices: name each one ("Laptop", "Work PC"); Ask understands the names you give.
 async function devicesPanel(devs) {
   if (!devs.length) return h('p', { class: 'empty' }, 'No devices yet. A device appears after its first upload.')
-  return h('div', { class: 'card-list' }, devs.map((d) => h('div', { class: 'card' },
-    h('h3', {}, d.name || 'Unnamed device'),
-    h('span', { class: 'muted mono', style: 'font-size:12px' }, `last upload ${stamp(d.last_seen)} · first seen ${stamp(d.first_seen)} · ${d.device_id}`))))
+  const counts = await Promise.all(devs.map((d) => count('episodes', (q) => q.eq('device_id', d.device_id))))
+  return h('div', { class: 'card-list' }, devs.map((d, i) => {
+    const title = h('h3', {}, d.label || d.name || 'Unnamed device')
+    const input = h('input', { value: d.label, placeholder: 'Give it a name, e.g. Laptop', maxlength: 40, 'aria-label': `Name for ${d.name}` })
+    const status = h('span', { class: 'muted small', role: 'status' })
+    const rename = async (e) => {
+      e.preventDefault()
+      const label = input.value.trim()
+      status.textContent = 'Saving…'
+      const { error } = await db.from('devices').update({ label }).eq('device_id', d.device_id)
+      if (error) return (status.textContent = `Couldn't save: ${error.message}`)
+      d.label = label // the tab re-renders from this list
+      devices[d.device_id] = label || d.name || d.device_id.slice(0, 8)
+      title.textContent = devices[d.device_id]
+      status.textContent = 'Saved. Ask understands this name now.'
+      suggestions()
+    }
+    return h('div', { class: 'card' }, title,
+      h('span', { class: 'muted small' },
+        `${counts[i]} ${counts[i] === 1 ? 'memory' : 'memories'} · last upload ${stamp(d.last_seen)}` +
+        (d.label ? ` · computer name ${d.name}` : '')),
+      h('form', { class: 'rename', onsubmit: rename }, input, h('button', { class: 'secondary', type: 'submit' }, 'Rename'), status))
+  }))
 }
 
 async function rawPanel() {
