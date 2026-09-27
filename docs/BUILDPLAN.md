@@ -28,7 +28,7 @@ The plan defaults to Python in a single process. Confirm or change these five de
 | --- | --- | --- | --- |
 | Language | Python 3.10, one process | C# / .NET 8, single exe | Fastest to iterate; ONNX, Whisper and UI Automation already run in native code |
 | Microphone | Opt-in per app, off by default | On whenever a tracked app is active | Privacy; the demo works on app output audio alone |
-| Answers | Changed 2026-09-26: on-device rule-based activity records + keyword search; embeddings, search by meaning and any LLM run in the cloud | Local embeddings + semantic search (the original default) | Recall keeps the general context, not every line; the device stays light (no models) |
+| Answers | Changed 2026-09-26: on-device rule-based activity records + keyword search; embeddings, search by meaning, speech-to-text and any LLM run in the cloud | Local embeddings + semantic search (the original default) | Recall keeps the general context, not every line; the device stays light (no models) |
 | Cloud | Supabase (Postgres + pgvector + auth) | Own FastAPI + Postgres | Auth, database and REST API with no server code |
 | Git flow | Push to `main`, tag every milestone | Branch + PR per phase | Speed; tags give known-good rollback points before the demo |
 
@@ -38,7 +38,7 @@ The plan defaults to Python in a single process. Confirm or change these five de
 - Machines run Windows 11 (per-app audio capture needs Windows build 20348 or later).
 - The `recall` folder isn't a git repo yet; Phase 0 creates it and the GitHub remote.
 - No keystroke logging: typed text is read from the app's UI once it appears on screen.
-- Raw audio and screenshots are never stored, only extracted text and embeddings.
+- Raw audio and screenshots are never stored. Speech segments go to the cloud only to be transcribed, then are discarded.
 
 ## Architecture
 
@@ -46,7 +46,7 @@ Everything up to search runs on the device in one low-priority process. The clou
 
 ```
 [Foreground watcher] -> [Text capture: UIA, OCR fallback] --\
-                     -> [Audio capture: loopback, VAD, Whisper] --> [Activity memory: rules -> activity records]
+                     -> [Audio capture: loopback, silence gate, cloud speech-to-text] --> [Activity memory: rules -> activity records]
 [Search UI] <- [Local store: SQLite + FTS5 keywords] <- activity memory
 [Local store] -> [Sync worker] -> [Cloud knowledge base: embeddings, search by meaning, LLM] <- [Other devices]   (Phase 7)
 ```
@@ -77,8 +77,8 @@ Each source starts with the cheapest method that works for the app. It falls bac
 | 2 | System WASAPI loopback, switched on and off by the audio session manager | Tier 1 unavailable | All output, only while the tracked app plays |
 | Opt-in | Microphone, while the tracked app holds an active capture session | User enables it per app (meetings) | Your side of the call |
 
-- Silero VAD (ONNX) cuts silence before any transcription runs.
-- faster-whisper `base.en` (int8, CPU) transcribes speech segments of up to 30 s.
+- A loudness gate (no model) drops silence on the device, so only speech segments are uploaded.
+- A cloud speech-to-text service transcribes segments of up to 30 s (provider picked in Phase 5).
 - Transcripts join the text pipeline tagged `source=audio`; the audio buffer is discarded.
 
 **Privacy guardrails**, built in from Phase 1:
@@ -217,9 +217,9 @@ Paused on 2026-09-26 for Phase 3.1. Already checked: the hotkey opens a focused 
 - [ ] Per-process loopback capture for the tracked app's process tree, resampled to 16 kHz mono
 - [ ] Spike limit: if Python bindings for per-process loopback aren't working after 1 h, ship a tiny C# helper exe (based on Microsoft's ApplicationLoopback sample) that streams PCM over stdout
 - [ ] Fallback: system WASAPI loopback (PyAudioWPatch), on only while a tracked app's audio session is active
-- [ ] Silero VAD (ONNX) splits speech segments; silence never reaches Whisper
-- [ ] faster-whisper `base.en` int8 on CPU, one worker thread, below-normal priority
-- [ ] Transcripts enter the Phase 3 pipeline with `source=audio` and segment timestamps
+- [ ] Loudness gate (no model) splits speech segments; silence is never uploaded
+- [ ] Segments go to cloud speech-to-text (needs the Phase 7 cloud) from a bounded queue, retried with backoff; audio discarded after
+- [ ] Transcripts enter the activity pipeline with `source=audio` and segment timestamps
 - [ ] Opt-in microphone capture while the tracked app holds the mic
 
 **Gate M5:** play a known 2-min clip in a tracked app; at least 8 of its 10 key phrases are searchable within 30 s. Audio from an untracked app isn't recorded. Silence costs under 1% CPU. Push, tag `m5-audio`.
@@ -229,7 +229,6 @@ Paused on 2026-09-26 for Phase 3.1. Already checked: the hotkey opens a focused 
 - [ ] OCR fallback: Windows.Graphics.Capture frame + Windows.Media.Ocr through the `winrt` Python packages, when UIA text is too thin; only after the frame changes, at most every 5 s
 - [ ] Process priority below normal; worker threads sleep when their queues are empty
 - [ ] Bounded queues with backpressure: drop OCR work before text work, never block a capture thread
-- [ ] Load Whisper on first speech; unload it after 5 min without audio
 - [ ] Privacy controls from *Capture strategy*: pause, delete by app or time, live-capture tray state
 
 **Gate M6:** a 30-min mixed-use perf run meets every budget in *Iterative testing*. M2–M5 tests still pass. OCR returns visible text from one canvas-rendered app. Push, tag `m6-hardened`.
@@ -241,7 +240,7 @@ Paused on 2026-09-26 for Phase 3.1. Already checked: the hotkey opens a focused 
 - [ ] Sync worker: every 10 min when the machine is idle, push unsynced activities in batches of 200; upsert by activity ID so retries never duplicate
 - [ ] Offline-safe: failed pushes retry with backoff, and the local DB stays the source of truth
 - [ ] Cloud search: one Postgres function for vector + keyword search across devices; "All devices" toggle in the search UI
-- [ ] Cloud intelligence: embeddings and search by meaning over synced activities (the golden paraphrase test moves here); LLM summaries or answers if time allows
+- [ ] Cloud intelligence: embeddings and search by meaning over synced activities (the golden paraphrase test moves here), and speech-to-text for Phase 5; LLM summaries or answers if time allows
 - [ ] Stretch: link related memories across devices (nearest-neighbour "related" items under each result)
 
 **Gate M7:** two devices (or two device IDs on one machine) sync, and device B finds a memory captured on device A. Cut the network mid-sync; after reconnecting, the cloud has no gaps and no duplicates. Push, tag `m7-cloud`.
@@ -284,7 +283,7 @@ Every phase runs the same short loop, so the latest green tag on GitHub is alway
 | CPU, no tracked app active | under 0.5% average |
 | CPU, active text capture | under 3% average |
 | CPU, 10 min of continuous speech | under 15% average |
-| RAM, all models loaded | under 600 MB |
+| RAM | under 600 MB |
 | Text on screen → searchable | under 5 s |
 | Speech → searchable | under 30 s |
 | UIA read time | under 150 ms at p95 |
@@ -320,7 +319,7 @@ The biggest schedule risk is per-process audio capture from Python, so Phase 5 h
 | No working Python binding for per-process loopback | Phase 5 slips | 1-h spike, then a small C# helper exe or gated system loopback |
 | Chromium and Electron apps expose a thin UIA tree until a client asks | Browser and chat text is missed | Query once at session start to wake the tree; OCR fallback; test Edge and one Electron app at M2 |
 | Large UIA trees (long web pages) read slowly | CPU spikes, lag in the tracked app | Cache requests, 150 ms and 2,000-node caps, debounce, worker thread |
-| Whisper is too heavy for the demo laptop | CPU budget blown | VAD first; drop to `tiny.en`; one thread |
+| Cloud speech-to-text is slow, costly or offline | Speech not searchable within 30 s | Upload only gated speech; queue and retry; seeded transcripts for the demo |
 | Recording other people on calls | Consent and legal exposure | Mic off by default; consent note in the UI and README |
 | Personal data in the cloud | Privacy exposure | Row-level security; stretch: client-side encryption of chunk text |
 | Venue Wi-Fi fails | Cloud step fails live | Second device pre-synced; backup videos from M4 and M8 |
