@@ -216,7 +216,7 @@ def test_an_agent_connects_through_oauth_and_the_consent_page(users):
                                "client_id": client["client_id"], "code_verifier": verifier}).encode())
     agent = type("Agent", (), {"token": lambda self: token["access_token"]})()
     assert len(mcp(agent, "tools/list", {})["result"]["tools"]) == 6
-    assert tool(agent, "list_threads", {})  # user A's memory, through the agent's own token
+    assert tool(agent, "list_threads", {}) == tool(device_1, "list_threads", {})  # user A's memory, via the agent's token
 
 
 def test_yesterday_gets_a_digest(tmp_path):
