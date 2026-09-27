@@ -119,7 +119,7 @@ async function digests(db: SupabaseClient) {
 // Episodes stored without an embedding (seeded, or saved while embedding failed) get one.
 async function embedMissing(db: SupabaseClient) {
   const { data: rows, error } = await db.from('episodes').select('user_id, episode_id, worked_on, context, topics')
-    .is('embedding', null).limit(50)
+    .is('embedding', null).limit(10) // gte-small runs on the function's CPU; stay well inside its 2-s limit
   if (error) throw error
   for (const e of rows ?? []) {
     const embedding = await embed(`${e.worked_on} ${e.context} ${e.topics.join(' ')}`)
