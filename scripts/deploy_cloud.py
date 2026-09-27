@@ -71,17 +71,19 @@ def schedule_understanding(env: dict) -> None:
         sql(env, f"select vault.update_secret(id, {literal(value)}) from vault.secrets where name = {literal(name)}; "
                  f"select vault.create_secret({literal(value)}, {literal(name)}) "
                  f"where not exists (select 1 from vault.secrets where name = {literal(name)});")
-    sql(env, """select cron.schedule('recall-understand', '* * * * *', $job$
-        select net.http_post(
-            url := (select decrypted_secret from vault.decrypted_secrets where name = 'recall_project_url')
-                   || '/functions/v1/understand',
-            headers := jsonb_build_object(
-                'apikey', (select decrypted_secret from vault.decrypted_secrets where name = 'recall_secret_key'),
-                'Content-Type', 'application/json'),
-            body := '{}'::jsonb,
-            timeout_milliseconds := 90000)
-    $job$)""")
-    print("understand job scheduled every minute")
+    jobs = {"recall-understand": ("* * * * *", "{}"), "recall-digests": ("7 * * * *", '{"task": "digests"}')}
+    for name, (schedule, body) in jobs.items():
+        sql(env, f"""select cron.schedule('{name}', '{schedule}', $job$
+            select net.http_post(
+                url := (select decrypted_secret from vault.decrypted_secrets where name = 'recall_project_url')
+                       || '/functions/v1/understand',
+                headers := jsonb_build_object(
+                    'apikey', (select decrypted_secret from vault.decrypted_secrets where name = 'recall_secret_key'),
+                    'Content-Type', 'application/json'),
+                body := '{body}'::jsonb,
+                timeout_milliseconds := 90000)
+        $job$)""")
+    print("understand job every minute, digests hourly")
 
 
 def set_secrets(env: dict) -> None:

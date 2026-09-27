@@ -84,6 +84,27 @@ export function parse(content: string, candidates: Candidate[]): Understood {
   }
 }
 
+export const DIGEST_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['summary', 'highlights'],
+  properties: {
+    summary: { type: 'string', description: "Three to five sentences on the user's day: main work, meetings, progress." },
+    highlights: { type: 'array', items: { type: 'string' }, description: 'Up to 6 decisions, deadlines or follow-ups worth remembering.' },
+  },
+} as const
+
+export type DayEpisode = { started: string; ended: string; worked_on: string; important: string[]; importance: number }
+
+export function digestPrompt(day: string, episodes: DayEpisode[], utcOffsetMinutes: number): string {
+  const local = (iso: string) => clock(new Date(Date.parse(iso) + utcOffsetMinutes * 60_000).toISOString())
+  const lines = episodes.map((e) =>
+    `- ${local(e.started)}-${local(e.ended)} (importance ${e.importance}) ${e.worked_on}` +
+    (e.important.length ? ` Important: ${e.important.join('; ')}` : '')
+  )
+  return `The user's episodes on ${day} (local times):\n${lines.join('\n')}\n\nSummarize the day for them.`
+}
+
 // When the model keeps failing, keep a rules-only memory rather than none.
 export function fallback(spans: Span[]): Understood {
   const longest = [...spans].sort((a, b) => minutes(b.started, b.ended) - minutes(a.started, a.ended))[0]

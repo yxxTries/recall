@@ -94,7 +94,9 @@ class SyncWorker:
 
     def _queue(self, episodes: list[dict]) -> None:
         if episodes:
+            offset = datetime.now().astimezone().utcoffset()
             batch = {"device_id": self.device_id, "device_name": self.device_name,
+                     "utc_offset_minutes": round(offset.total_seconds() / 60),
                      "episodes": [prepare(ep, self.vault) for ep in episodes]}
             self.outbox.put(gzip.compress(json.dumps(batch).encode()))
             log.info("queued %d episodes for upload", len(episodes))

@@ -209,3 +209,34 @@ def test_an_agent_connects_through_oauth_and_the_consent_page(users):
     agent = type("Agent", (), {"token": lambda self: token["access_token"]})()
     assert len(mcp(agent, "tools/list", {})["result"]["tools"]) == 6
     assert tool(agent, "list_threads", {})  # user A's memory, through the agent's own token
+
+
+def test_yesterday_gets_a_digest(tmp_path):
+    """A user whose day is over (3 am or later their time) gets one summary of yesterday."""
+    key = secret_key()
+    service = {"apikey": key, "Content-Type": "application/json"}
+    user = admin("POST", "users", {"email": f"recall-test-d-{secrets.token_hex(4)}@example.com",
+                                   "password": secrets.token_urlsafe(18), "email_confirm": True})["id"]
+    try:
+        now = datetime.utcnow()
+        offset = ((12 - now.hour) % 24) * 60  # a timezone where it's midday now, so yesterday is over
+        offset = offset - 1440 if offset > 720 else offset
+        local_yesterday = (now + timedelta(minutes=offset)).date() - timedelta(days=1)
+        start = datetime.combine(local_yesterday, datetime.min.time()) - timedelta(minutes=offset)
+        request("POST", f"{URL}/rest/v1/devices", service, json.dumps(
+            {"user_id": user, "device_id": "device-d", "utc_offset_minutes": offset}).encode())
+        work = [(9, "Planned the hackathon demo script with Priya", ["Demo rehearsal at 4pm"]),
+                (11, "Fixed the MCP consent page nonce check", []),
+                (15, "Sponsor call: chose Contoso for mentoring", ["Tell Fabrikam by Thursday"])]
+        request("POST", f"{URL}/rest/v1/episodes", service, json.dumps([
+            {"user_id": user, "episode_id": f"d{hour}", "device_id": "device-d",
+             "started": (start + timedelta(hours=hour)).isoformat() + "Z",
+             "ended": (start + timedelta(hours=hour, minutes=40)).isoformat() + "Z",
+             "worked_on": what, "important": important, "importance": 6} for hour, what, important in work]).encode())
+        result = request("POST", f"{URL}/functions/v1/understand", service, b'{"task": "digests"}', timeout=90)
+        assert {"day": local_yesterday.isoformat(), "episodes": 3} in result["digests"]
+        [digest] = request("GET", f"{URL}/rest/v1/digests?user_id=eq.{user}&select=day,summary,highlights", service)
+        print(ascii(f"digest: {digest['summary']} | {digest['highlights']}"))  # the console can't show every character
+        assert "Contoso" in digest["summary"] + " ".join(digest["highlights"])
+    finally:
+        admin("DELETE", f"users/{user}")

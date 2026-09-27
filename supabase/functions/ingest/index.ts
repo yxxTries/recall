@@ -5,6 +5,7 @@ import { withSupabase } from 'npm:@supabase/server@^1.8.0'
 type Batch = {
   device_id: string
   device_name?: string
+  utc_offset_minutes?: number
   episodes: { episode_id: string; started: string; ended: string; text: string; spans: Record<string, string>[] }[]
 }
 
@@ -28,7 +29,10 @@ export default {
     const device = batch.device_id
     const now = new Date().toISOString()
     const steps = [
-      supabase.from('devices').upsert({ device_id: device, name: batch.device_name ?? '', last_seen: now },
+      supabase.from('devices').upsert({
+        device_id: device, name: batch.device_name ?? '', last_seen: now,
+        utc_offset_minutes: Math.round(Number(batch.utc_offset_minutes) || 0),
+      },
         { onConflict: 'user_id,device_id' }),
       supabase.from('raw_episodes').upsert(
         batch.episodes.map((e) => ({ episode_id: e.episode_id, device_id: device, started: e.started, ended: e.ended, text: e.text })),

@@ -5,7 +5,9 @@ import { withSupabase } from 'npm:@supabase/server@^1.8.0'
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@^2.117.0'
 import { embed, vector } from '../_shared/embed.ts'
 import { complete, LlmError, providers } from '../_shared/llm.ts'
-import { type Candidate, EPISODE_SCHEMA, fallback, parse, prompt, type Span, SYSTEM, type Understood } from '../_shared/understanding.ts'
+import {
+  type Candidate, DIGEST_SCHEMA, digestPrompt, EPISODE_SCHEMA, fallback, parse, prompt, type Span, SYSTEM, type Understood,
+} from '../_shared/understanding.ts'
 
 const MAX_ATTEMPTS = 4
 const BUDGET_MS = 50_000
@@ -93,8 +95,31 @@ async function joinThread(
   return data.id
 }
 
+// Yesterday's digest for users whose day is over (after 3 am their time); called hourly.
+async function digests(db: SupabaseClient) {
+  const { data: due, error } = await db.rpc('digests_due', { k: 3 })
+  if (error) throw error
+  const results = []
+  for (const { user_id, day, utc_offset_minutes, day_start } of due ?? []) {
+    const until = new Date(Date.parse(day_start) + 86_400_000).toISOString()
+    const { data: episodes } = await db.from('episodes').select('started, ended, worked_on, important, importance')
+      .eq('user_id', user_id).gte('started', day_start).lt('started', until).order('started').limit(80)
+    const reply = await complete(providers(), [{ role: 'system', content: SYSTEM },
+      { role: 'user', content: digestPrompt(day, episodes ?? [], utc_offset_minutes) }], DIGEST_SCHEMA)
+    const digest = JSON.parse(reply.content)
+    const { error: saveError } = await db.from('digests').upsert({
+      user_id, day, summary: String(digest.summary), highlights: (digest.highlights ?? []).slice(0, 6).map(String),
+    })
+    if (saveError) throw saveError
+    results.push({ day, episodes: episodes?.length ?? 0 })
+  }
+  return results
+}
+
 export default {
-  fetch: withSupabase({ auth: 'secret' }, async (_req, { supabaseAdmin: db }) => {
+  fetch: withSupabase({ auth: 'secret' }, async (req, { supabaseAdmin: db }) => {
+    const { task } = await req.json().catch(() => ({}))
+    if (task === 'digests') return Response.json({ digests: await digests(db) })
     const start = Date.now()
     const results: unknown[] = []
     while (Date.now() - start < BUDGET_MS) {

@@ -1,7 +1,7 @@
 // Unit tests for the cloud's understanding logic: npx deno test supabase/functions/tests
 import { assert, assertEquals, assertRejects, assertStringIncludes } from 'jsr:@std/assert@1'
 import { complete, LlmError, type Provider, providers } from '../_shared/llm.ts'
-import { EPISODE_SCHEMA, fallback, flagInstructions, parse, prompt } from '../_shared/understanding.ts'
+import { DIGEST_SCHEMA, digestPrompt, EPISODE_SCHEMA, fallback, flagInstructions, parse, prompt } from '../_shared/understanding.ts'
 
 const raw = {
   episode_id: 'e1', device_id: 'a1b2c3d4e5', started: '2026-09-26T14:05:00+01:00', ended: '2026-09-26T14:19:00+01:00',
@@ -73,4 +73,11 @@ Deno.test('providers come from keys; a rate-limited provider falls through to th
   const bad = (async () => new Response('bad schema', { status: 400 })) as typeof fetch
   const error = await assertRejects(() => complete(list, [], {}, bad), LlmError)
   assertEquals(error.retryable, false)
+})
+
+Deno.test('the digest prompt lists the day in local time', () => {
+  const text = digestPrompt('2026-09-26', [{ started: '2026-09-26T13:05:00+00:00', ended: '2026-09-26T13:19:00+00:00',
+    worked_on: 'Weekly sync', important: ['decide by Friday'], importance: 7 }], 60)
+  assertStringIncludes(text, '- 14:05-14:19 (importance 7) Weekly sync Important: decide by Friday')
+  assertEquals(DIGEST_SCHEMA.required, ['summary', 'highlights'])
 })
