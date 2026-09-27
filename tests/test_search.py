@@ -79,7 +79,7 @@ class FakeCloud:
         if self.fail:
             raise CloudError(0, "offline")
         self.calls.append((function, json.loads(body)))
-        return {"results": [{"worked_on": "Chose Contoso as hackathon sponsor", "important": ["Tell Fabrikam by Thursday"],
+        return {"results": [{"episode_id": "e1", "worked_on": "Chose Contoso as hackathon sponsor", "important": ["Tell Fabrikam by Thursday"],
                              "evidence": [], "apps": ["ms-teams.exe"], "started": "2026-09-27T13:05:00+00:00",
                              "ended": "2026-09-27T13:19:00+00:00"}]}
 
@@ -90,7 +90,7 @@ def test_all_devices_searches_the_cloud_and_falls_back_offline(api):
     [hit] = api.search("which sponsor did we pick", time_range="any", where="all")
     assert hit == {"title": "Chose Contoso as hackathon sponsor", "text": "Tell Fabrikam by Thursday",
                    "app": "ms-teams.exe", "url": "", "source": "cloud", "start": "2026-09-27T13:05:00+00:00",
-                   "time": "2026-09-27T13:19:00+00:00"}
+                   "time": "2026-09-27T13:19:00+00:00", "link": "https://recall-memory-yxxtries.vercel.app/#e1"}
     assert cloud.calls == [("search", {"query": "which sponsor did we pick", "since": None, "k": 20})]
     assert api.search("which sponsor did we pick", app="code.exe", where="all") == []  # app filter applies
     api._cloud = FakeCloud(fail=True)

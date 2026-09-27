@@ -54,7 +54,7 @@
 <header class="pywebview-drag-region">
   <div class="bar">
     <span class="dot"></span>
-    <input id="q" placeholder="Search everything you've seen or heard…" autocomplete="off" spellcheck="false">
+    <input id="q" placeholder="Search what you've worked on…" autocomplete="off" spellcheck="false">
   </div>
   <div class="filters">
     <select id="app"><option value="">All apps</option></select>
@@ -155,6 +155,7 @@
   async function activate() {
     const r = results[selected];
     if (!r) return;
+    if (r.link) return pywebview.api.open(r.link); // a cloud episode: its full memory on the dashboard
     if (r.url) return pywebview.api.open(r.url);
     if (await pywebview.api.copy(r.text)) toast("Copied to clipboard");
   }
@@ -167,14 +168,19 @@
     $("#app").value = apps.includes(current) ? current : "";
   }
 
-  async function loadWhere() { $("#where").hidden = !(await pywebview.api.cloud()); }
+  let chosePlace = false; // signed in: search by meaning on all devices unless the user picks "This device"
+  async function loadWhere() {
+    const cloud = await pywebview.api.cloud();
+    $("#where").hidden = !cloud;
+    if (cloud && !chosePlace) $("#where").value = "all";
+  }
 
   window.onShown = () => { $("#q").focus(); $("#q").select(); loadApps(); loadWhere(); run(); };
 
   $("#q").addEventListener("input", schedule);
   $("#app").addEventListener("change", run);
   $("#range").addEventListener("change", run);
-  $("#where").addEventListener("change", run);
+  $("#where").addEventListener("change", () => { chosePlace = true; run(); });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") { pywebview.api.hide(); }
     else if (e.key === "ArrowDown") { selected = Math.min(selected + 1, results.length - 1); render(); e.preventDefault(); }

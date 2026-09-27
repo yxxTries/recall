@@ -12,6 +12,7 @@ from recall.sync.cloud import CloudError
 
 log = logging.getLogger(__name__)
 PAGE = Path(__file__).with_name("search.html")
+DASHBOARD = "https://recall-memory-yxxtries.vercel.app"  # shows one episode in full at /#<episode_id>
 
 
 def since_for(time_range: str, now: datetime | None = None) -> str | None:
@@ -49,9 +50,10 @@ def copy_to_clipboard(text: str) -> bool:
 
 
 def cloud_results(rows: list[dict], app: str = "") -> list[dict]:
-    """Understood episodes from any device, shaped like local results."""
+    """Understood episodes from any device, shaped like local results; opening one shows it on the dashboard."""
     return [{"title": r["worked_on"], "text": "\n".join(r.get("important") or r.get("evidence") or []),
-             "app": (r.get("apps") or [""])[0], "url": "", "source": "cloud", "start": r["started"], "time": r["ended"]}
+             "app": (r.get("apps") or [""])[0], "url": "", "source": "cloud", "start": r["started"], "time": r["ended"],
+             "link": f"{DASHBOARD}/#{r['episode_id']}" if r.get("episode_id") else ""}
             for r in rows if not app or app in (r.get("apps") or [])]
 
 
@@ -80,7 +82,7 @@ class SearchApi:
         if query:
             rows = self._cloud.call("search", json.dumps({"query": query, "since": since, "k": 20}).encode())["results"]
         else:
-            rows = self._cloud.select("episodes", "select=started,ended,apps,worked_on,important,evidence"
+            rows = self._cloud.select("episodes", "select=episode_id,started,ended,apps,worked_on,important,evidence"
                                       "&order=ended.desc&limit=20" + (f"&ended=gte.{quote(since)}" if since else ""))
         return cloud_results(rows, app)
 

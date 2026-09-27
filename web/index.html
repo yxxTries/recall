@@ -324,6 +324,7 @@ async function load() {
     stat('Daily digests', digests),
     stat('Devices', (devs || []).length))
   tabs.Devices = () => devicesPanel(devs || [])
+  if (linked()) current = 'Timeline'
   renderTabs()
 }
 
@@ -351,10 +352,15 @@ function check({ data, error }) {
   return data
 }
 
+const EPISODE_FIELDS = 'episode_id, device_id, started, ended, apps, worked_on, context, actions, important, people, evidence, importance'
+const linked = () => decodeURIComponent(location.hash.slice(1)) // Recall's search window opens an episode as /#<episode_id>
+
 async function timeline() {
-  const rows = check(await db.from('episodes')
-    .select('episode_id, device_id, started, ended, apps, worked_on, context, actions, important, people, evidence, importance')
-    .order('started', { ascending: false }).limit(150))
+  const rows = check(await db.from('episodes').select(EPISODE_FIELDS).order('started', { ascending: false }).limit(150))
+  if (linked() && !rows.some((e) => e.episode_id === linked())) {
+    const older = check(await db.from('episodes').select(EPISODE_FIELDS).eq('episode_id', linked()))
+    rows.push(...older)
+  }
   if (!rows.length) return h('p', { class: 'empty' },
     'Nothing understood yet. Tick an app under Tracked apps in Recall\'s tray, then press Ctrl+Alt+Esc to send what you\'re doing.')
   const days = new Map()
@@ -390,7 +396,12 @@ function episodeRow(e) {
     e.people?.length ? section('People', h('p', {}, e.people.join(', '))) : null,
     e.evidence?.length ? section('Evidence from your screen', e.evidence.map((q) => h('blockquote', {}, q))) : null,
     h('p', { class: 'muted mono', style: 'font-size:12px' }, `${devices[e.device_id] || 'device'} · importance ${e.importance}/10 · ${e.episode_id}`))
-  return h('div', { class: 'row' }, button, detail)
+  const row = h('div', { class: 'row' }, button, detail)
+  if (e.episode_id === linked()) {
+    toggle()
+    setTimeout(() => row.scrollIntoView({ block: 'start' }), 0) // once the panel shows it
+  }
+  return row
 }
 
 const section = (title, ...body) => h('div', {}, h('div', { class: 'label' }, title), ...body)
