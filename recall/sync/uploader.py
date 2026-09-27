@@ -74,6 +74,7 @@ class SyncWorker:
         self._stop = threading.Event()
         self._wake = threading.Event()  # ends the timer thread's wait early: to stop, or to send now
         self._on_sent = None  # set by send_now
+        self.on_signed_out = None  # called when the cloud ends the session; the outbox waits for a new sign-in
         self.uploaded = 0  # episodes the cloud accepted since start
         self._thread = threading.Thread(target=self._run, name="sync", daemon=True)
         self._wait = INTERVAL
@@ -128,6 +129,8 @@ class SyncWorker:
             except CloudError as e:
                 if e.status in (0, 401, 408, 429) or e.status >= 500:
                     log.warning("upload failed, will retry: %s", e)
+                    if not self.cloud.signed_in and self.on_signed_out:
+                        self.on_signed_out()
                     return False
                 log.error("upload rejected, dropping the batch: %s", e)  # a bad batch mustn't block the rest
             else:

@@ -57,6 +57,8 @@ class CloudSession:
 
     @property
     def signed_in(self) -> bool:
+        if not self.session and self.path.exists():  # signed in from a terminal while Recall runs
+            self.session = json.loads(self.path.read_text(encoding="utf-8"))
         return bool(self.url and self.key and self.session)
 
     @property
@@ -84,7 +86,13 @@ class CloudSession:
         if not self.session:
             raise CloudError(401, "not signed in")
         if self.session.get("expires_at", 0) - REFRESH_MARGIN < time.time():
-            self._auth("refresh_token", {"refresh_token": self.session["refresh_token"]})
+            try:
+                self._auth("refresh_token", {"refresh_token": self.session["refresh_token"]})
+            except CloudError as e:
+                if 400 <= e.status < 500 and e.status not in (408, 429):  # the session was revoked
+                    self.sign_out()
+                    raise CloudError(401, "signed out of the cloud: sign in again") from None
+                raise
         return self.session["access_token"]
 
     def select(self, table: str, query: str, timeout: float = 30) -> list:

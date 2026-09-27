@@ -126,6 +126,29 @@ def test_nothing_is_sent_while_signed_out(tmp_path):
     assert sync.tick() and cloud.calls == 0 and sync.outbox.count() == 1
 
 
+def test_a_revoked_session_signs_out_and_loses_nothing(tmp_path, monkeypatch):
+    from recall.sync import cloud
+
+    def refused(method, url, headers, body=None, timeout=30):  # what Supabase says to a revoked refresh token
+        raise CloudError(400, '{"error_code":"validation_failed","msg":"Refresh token is not valid"}')
+
+    monkeypatch.setattr(cloud, "request", refused)
+    path = tmp_path / "cloud.json"
+    stored = {"access_token": "a", "refresh_token": "r", "expires_at": 0, "user": {"id": "u1", "email": "me@example.com"}}
+    path.write_text(json.dumps(stored))
+    session = cloud.CloudSession(path, url="https://p.supabase.co", key="k")
+    sync = worker(tmp_path, session)
+    signed_out = []
+    sync.on_signed_out = lambda: signed_out.append(True)
+    sync.add(task(0, "ledger invoice expense payee"))
+    sync.stop()
+    assert not sync.tick() and signed_out == [True]
+    assert not session.signed_in and not path.exists() and sync.outbox.count() == 1  # kept, not dropped as a bad batch
+    assert sync.tick() and sync.outbox.count() == 1 and signed_out == [True]
+    path.write_text(json.dumps(stored))  # signed in again from a terminal: no restart needed
+    assert session.signed_in
+
+
 def test_consent_page_approves_only_with_its_nonce(tmp_path, monkeypatch):
     import re
     import urllib.error

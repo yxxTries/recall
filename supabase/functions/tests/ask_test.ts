@@ -26,7 +26,12 @@ Deno.test('citations of episodes the model was not shown are dropped', () => {
 Deno.test('time words in a question become a local-time range (a day runs from 5 am)', () => {
   const now = new Date('2026-09-27T18:30:00Z') // 3:30 pm at UTC-3
   const at = (q: string) => timeRange(q, now, -180)
-  assertEquals(at('What was I working on today?'), { since: '2026-09-27T08:00:00.000Z', until: '2026-09-28T08:00:00.000Z' })
+  assertEquals(at('What was I working on today?'), { since: '2026-09-27T03:00:00.000Z', until: '2026-09-28T08:00:00.000Z' })
+  // At 5:42 am after a late night, today still has the 1 am work; at 2 am, today began yesterday at 5 am.
+  assertEquals(timeRange('what was I working on today', new Date('2026-09-27T08:42:00Z'), -180),
+    { since: '2026-09-27T03:00:00.000Z', until: '2026-09-28T08:00:00.000Z' })
+  assertEquals(timeRange('what did I do today', new Date('2026-09-27T05:00:00Z'), -180),
+    { since: '2026-09-26T08:00:00.000Z', until: '2026-09-27T08:00:00.000Z' })
   assertEquals(at('what did I do this afternoon'), { since: '2026-09-27T15:00:00.000Z', until: '2026-09-27T21:00:00.000Z' })
   assertEquals(at('What did I read yesterday morning?'), { since: '2026-09-26T08:00:00.000Z', until: '2026-09-26T15:00:00.000Z' })
   assertEquals(at('which sponsor did we pick?'), null)

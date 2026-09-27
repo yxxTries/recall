@@ -61,10 +61,11 @@ def mcp(session: CloudSession, method: str, params: dict) -> dict:
     return json.loads(data)
 
 
-def tool(session: CloudSession, name: str, arguments: dict):
+def tool(session: CloudSession, name: str, arguments: dict, whole: bool = False):
     result = mcp(session, "tools/call", {"name": name, "arguments": arguments})["result"]
     assert not result.get("isError"), result
-    return json.loads(result["content"][0]["text"])["data"]
+    reply = json.loads(result["content"][0]["text"])
+    return reply if whole else reply["data"]
 
 
 @pytest.fixture(scope="module")
@@ -139,6 +140,18 @@ def test_device_b_finds_by_meaning_what_device_a_captured(users, tmp_path):
     assert timeline["spans"][0]["title"] == "Sponsor sync"
     assert tool(device_2, "get_episode", {"episode_id": episode["episode_id"]})["spans"]
     assert tool(device_2, "get_thread", {"thread_id": episode["thread_id"]})["episodes"]
+
+    # Agents work in the user's local time: times carry the device's offset, and time words set the period.
+    offset = now.isoformat()[-6:]
+    found = tool(device_2, "search_memory", {"query": "what did we decide today"}, whole=True)
+    assert found["now"].endswith(offset) and found["period"]["since"].endswith(offset)
+    assert found["data"][0]["episode_id"] == episode["episode_id"] and found["data"][0]["started"].endswith(offset)
+    local = lambda t: t.strftime("%Y-%m-%dT%H:%M")  # as an agent might write it: no zone means the user's local time
+    timeline = tool(device_2, "get_timeline", {"since": local(now - timedelta(hours=1)), "until": local(now)})
+    assert [e["episode_id"] for e in timeline["episodes"]] == [episode["episode_id"]]
+    assert [e["episode_id"] for e in tool(device_2, "daily_digest", {})["episodes"]] == [episode["episode_id"]]
+    assert "UTC" + offset in mcp(device_2, "initialize", {"protocolVersion": "2025-11-25", "capabilities": {},
+                                 "clientInfo": {"name": "test", "version": "1"}})["result"]["instructions"]
 
 
 def test_another_user_sees_nothing(users):

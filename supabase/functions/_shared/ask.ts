@@ -36,7 +36,8 @@ export function timeRange(question: string, now: Date, utcOffsetMinutes: number)
   const q = question.toLowerCase()
   const offset = utcOffsetMinutes * 60_000
   const local = new Date(now.getTime() + offset) // the local clock, read through the UTC getters
-  let today = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()) - offset + 5 * HOUR
+  const midnight = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()) - offset
+  let today = midnight + 5 * HOUR
   if (local.getUTCHours() < 5) today -= 24 * HOUR
   const range = (from: number, to: number) => ({ since: new Date(from).toISOString(), until: new Date(to).toISOString() })
   if (/\bthis week\b|\bpast week\b|\blast 7 days\b/.test(q)) return range(today - 6 * 24 * HOUR, now.getTime())
@@ -45,7 +46,9 @@ export function timeRange(question: string, now: Date, utcOffsetMinutes: number)
   if (/\bmorning\b/.test(q)) return range(day, day + 7 * HOUR) // 5 am to noon
   if (/\bafternoon\b/.test(q)) return range(day + 7 * HOUR, day + 13 * HOUR) // noon to 6 pm
   if (/\bevening\b|\btonight\b|\blast night\b/.test(q)) return range(day + 12 * HOUR, day + 24 * HOUR) // 5 pm to 5 am
-  if (/\btoday\b|\byesterday\b/.test(q)) return range(day, day + 24 * HOUR)
+  if (/\byesterday\b/.test(q)) return range(day, day + 24 * HOUR)
+  // Today also has what was done since midnight: at 6 am after a late night, that night's work is today's.
+  if (/\btoday\b/.test(q)) return range(Math.min(today, midnight), today + 24 * HOUR)
   return null
 }
 
