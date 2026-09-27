@@ -18,7 +18,7 @@ A Windows tray app that remembers what you were doing in the apps you choose. Th
 | Episodes understood in the cloud within 2 min | Done (6–58 s) |
 | Search by meaning across devices | Done (golden queries 20/20 in top 3) |
 | AI agents read your memory over MCP; other users see nothing | Done in tests; to verify with Claude Code on your account |
-| Speech from tracked apps searchable within 30 s | Not started (Phase 5) |
+| Speech from tracked apps searchable within 30 s | Not started (Phase 5, after the MVP) |
 | Near-zero idle CPU; capture never lags the tracked app | Measured 0.03% CPU; 30-min perf run still to do |
 | Demo runs end to end, twice in a row | Not started (Phase 8) |
 
@@ -46,8 +46,8 @@ CLOUD (Supabase, private per user)
 
 **1. Close Gate M7 (cloud + MCP)**
 
-- [ ] Sign up and log in: `python -m recall.sync.cloud signup`, then `login`; restart Recall
-- [ ] Connect Claude Code: `claude mcp add --transport http recall https://mcrzydsnovhpevzmcchr.supabase.co/functions/v1/mcp`, authenticate, approve
+- [x] Sign up and log in: `python -m recall.sync.cloud signup`, then `login`; restart Recall
+- [x] Connect Claude Code: `claude mcp add --transport http recall https://mcrzydsnovhpevzmcchr.supabase.co/functions/v1/mcp`, authenticate, approve
 - [ ] Claude Code answers "what was I working on between X and Y?" with evidence
 - [ ] Push and tag `m7-cloud`
 
@@ -57,19 +57,19 @@ CLOUD (Supabase, private per user)
 - [ ] 30-minute perf run within budget
 - [ ] 60-second backup demo video
 
-**3. Phase 5 · Audio**
+**3. Phase 8 · Demo (MVP on text capture)**
+
+- [ ] Seed the demo dataset; rehearse the script 3 times
+- [x] README: setup, architecture, privacy, MCP setup
+- [ ] Final backup video
+- **Gate M8:** the demo runs twice in a row with no restarts; tag `v1.0-demo`
+
+**4. Phase 5 · Audio (last, after the MVP demo)**
 
 - [ ] Per-process loopback for the tracked app (1-hour spike; fallback: system loopback gated on the app's audio session)
 - [ ] Loudness gate; speech segments to Groq `whisper-large-v3-turbo`; audio discarded after
 - [ ] Transcripts join the pipeline as `source=audio`
 - **Gate M5:** 8 of 10 key phrases from a 2-min clip searchable within 30 s; silence costs under 1% CPU
-
-**4. Phase 8 · Demo**
-
-- [ ] Seed the demo dataset; rehearse the script 3 times
-- [ ] README: setup, architecture, privacy, MCP setup
-- [ ] Final backup video
-- **Gate M8:** the demo runs twice in a row with no restarts; tag `v1.0-demo`
 
 ## Testing
 
