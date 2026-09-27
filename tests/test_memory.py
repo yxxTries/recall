@@ -46,6 +46,8 @@ def test_subjects_are_workspaces_sites_and_windows():
         == ("recall", "BUILDPLAN.md")
     page = ev("text", 0, app="msedge.exe", title="Docs - Personal - Microsoft Edge", url="www.example.com/a", text="x")
     assert describe(page) == ("example.com", "Docs")
+    pdf = ev("text", 0, app="chrome.exe", title="lease.pdf - Google Chrome", url="C:/Users/me/lease.pdf", text="x")
+    assert describe(pdf) == ("lease.pdf", "lease.pdf")  # a local file has no site: each one is its own subject
     assert describe(ev("session_start", 0, app="notepad.exe", title="todo.txt - Notepad")) == ("todo.txt", "todo.txt")
 
 

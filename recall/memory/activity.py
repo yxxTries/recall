@@ -33,6 +33,7 @@ SEPARATOR = re.compile(r"\s+[-|–—]\s+")
 MORE_PAGES = re.compile(r"\s+and \d+ more pages?$")
 SPEAKER = re.compile(r"^([A-Z][a-z]+(?: [A-Z][a-z]+)?):\s+\S")  # "Priya: judging starts at 2pm"
 WITH_PERSON = re.compile(r"\bwith ([A-Z][a-z]+(?: [A-Z][a-z]+)?)")  # "Call with Sarah Lee"
+LOCAL_FILE = re.compile(r"^(?:file:|[a-zA-Z]:[\\/])")  # a browser showing a file on this PC ("C:/Users/me/lease.pdf")
 NOT_PEOPLE = {"Note", "Notes", "Error", "Warning", "Tip", "Step", "Example", "Usage", "Todo", "Update", "Re",
               "Fwd", "Subject", "From", "To", "Date", "Time", "Link", "Source", "Question", "Answer"}
 WORD = re.compile(r"[a-z][a-z0-9]{2,}")
@@ -67,7 +68,7 @@ def describe(e: dict) -> tuple[str, str]:
         if e["type"] == "text" and not url.startswith("vscode://"):
             return workspace, "AI chat"  # UIA only reads VS Code's chat panels; editor text has vscode:// links
         return workspace, PurePath(file).name if file else ""
-    if app in BROWSERS and url:
+    if app in BROWSERS and url and not LOCAL_FILE.match(url):
         host = urlparse(url if "://" in url else "https://" + url).hostname or ""
         return host.removeprefix("www.") or title, title
     return title, title

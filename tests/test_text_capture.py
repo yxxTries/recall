@@ -4,6 +4,7 @@ import uuid
 
 import pytest
 
+from recall.capture import text_uia
 from recall.capture.text_uia import TextCapture, clean_lines
 from recall.watcher import ForegroundWatcher
 from tests.helpers import EDIT_WINDOW, PYTHONW, edit_controls, focus, open_window, post_text, wait_for
@@ -32,6 +33,50 @@ def test_first_read_of_a_chat_sends_only_its_latest_lines():
         assert texts[0]["text"].splitlines() == [f"message {i} about the release" for i in expected], app
         capture._snapshot(FakeReader(history + "\nmessage 500 about the release"), session)
         assert texts[1]["text"] == "message 500 about the release"  # the skipped history counts as seen
+
+
+class LiveReader:
+    """A window whose text the test changes; counts reads."""
+
+    pages: dict[int, str] = {}
+    reads: list[int] = []
+
+    def read(self, hwnd, app):
+        LiveReader.reads.append(hwnd)
+        return LiveReader.pages[hwnd], ""
+
+
+@pytest.fixture
+def live(monkeypatch):
+    monkeypatch.setattr(text_uia, "WindowReader", LiveReader)
+    monkeypatch.setattr(text_uia, "DEBOUNCE_S", 0.3)
+    LiveReader.pages, LiveReader.reads = {1: "Dana: the upgrade is on Saturday", 2: "Budget sheet"}, []
+    texts = []
+    capture = TextCapture(texts.append)
+    capture.start()
+    yield capture, texts
+    capture.stop()
+
+
+def test_leaving_a_window_reads_what_changed_since_its_last_read(live):
+    capture, texts = live
+    chat = {"hwnd": 1, "app": "slack.exe", "title": "#platform"}
+    capture.set_session(chat)
+    assert wait_for(lambda: texts, timeout=2)
+    LiveReader.pages[1] += "\nYou: I'll review the runbook Thursday"
+    capture.content_changed(chat)
+    capture.set_session(None)  # switched away before the debounce ran out: the message you just sent is still read
+    assert wait_for(lambda: len(texts) == 2, timeout=0.2)
+    assert texts[1]["text"] == "You: I'll review the runbook Thursday"
+
+
+def test_windows_passed_through_are_not_read(live):
+    capture, texts = live
+    capture.set_session({"hwnd": 1, "app": "slack.exe", "title": "#platform"})
+    capture.set_session({"hwnd": 2, "app": "excel.exe", "title": "Budget"})  # alt-tabbed through the chat
+    assert wait_for(lambda: texts, timeout=2)
+    time.sleep(0.5)
+    assert LiveReader.reads == [2]
 
 
 class Pipeline:

@@ -149,6 +149,8 @@ class TextCapture:
         self.session = None  # the live session from ForegroundWatcher, or None
         self._seen: OrderedDict[int, set[str]] = OrderedDict()  # hwnd -> lines already emitted
         self._last_change = 0.0
+        self._last_read = (0, 0.0)  # (hwnd, when) of the latest read
+        self._leaving = None  # a window you switched away from with changes not yet read
         self._wake = threading.Event()
         self._stopping = False
         self._thread = threading.Thread(target=self._run, name="text-capture", daemon=True)
@@ -163,7 +165,14 @@ class TextCapture:
             self._thread.join(timeout=5)
 
     def set_session(self, session) -> None:
-        self.session = dict(session) if session else None
+        old, self.session = self.session, dict(session) if session else None
+        hwnd, read_at = self._last_read
+        # A window that changed after its last read (a message sent, a line typed) and that you left before the debounce
+        # ran out is read once more now, not on your next visit. Windows only passed through were never read: no cost.
+        # (>= because a change in the same clock tick as the read's start may not be in it.)
+        if old and old["hwnd"] == hwnd and self._last_change >= read_at:
+            self._leaving = old
+            self._wake.set()
         if session:
             self.content_changed(session)
 
@@ -182,6 +191,9 @@ class TextCapture:
                 first = time.monotonic()
                 while not self._stopping:
                     self._wake.clear()
+                    leaving, self._leaving = self._leaving, None
+                    if leaving:
+                        self._snapshot(reader, leaving)
                     now = time.monotonic()
                     quiet_left = self._last_change + DEBOUNCE_S - now
                     budget_left = first + MAX_WAIT_S - now
@@ -200,6 +212,7 @@ class TextCapture:
         if any(marker in session["title"] for marker in PRIVATE_MARKERS):
             return
         hwnd = session["hwnd"]
+        self._last_read = (hwnd, time.monotonic())
         started = time.perf_counter()
         try:
             text, url = reader.read(hwnd, session["app"])
