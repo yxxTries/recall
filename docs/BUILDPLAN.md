@@ -265,23 +265,25 @@ Understanding happens over time, in the cloud. The device splits your work into 
 
 **Cloud side (Supabase)**
 
-- [ ] Tables: `raw_episodes` (deleted 24 h after understanding), `timeline_spans`, `episodes` (with embedding), `threads`, `digests`, `devices`; row-level security per user (written, not deployed)
-- [ ] Ingest Edge Function → `raw_episodes` → pgmq queue; pg_cron calls the understand function every minute, and failed work retries after its visibility timeout (written, not deployed)
-- [ ] Timeline spans by rules: exact app and window spans with durations, built on the device (written, not deployed)
-- [ ] One Groq call per closed episode through an OpenAI-compatible client (provider = base URL + key, so Cerebras is a drop-in fallback), with JSON-schema output validated and retried once on failure: `worked_on`, `context`, `actions`, `important`, `topics`, `people`, `importance`, `continues_previous`, `thread`, `thread_title`, `evidence`; the input is the previous episode, candidate threads, the timeline and the condensed text. Measured live: ~1.3k tokens and 1.5 s per episode with `reasoning_effort: low`; after 4 failed attempts an episode keeps a rules-only memory (written, not deployed)
-- [ ] Embeddings with Supabase's built-in gte-small (384 dimensions); threads link episodes of the same project across days (similarity, confirmed by the model) (written, not deployed); daily digests scheduled off-peak (not started)
-- [ ] One search function: keywords + embeddings + recency decay + importance, with time filters (written, not deployed; the golden paraphrase test moves here); the search window gets an "All devices" toggle (not started), and local keyword search stays for offline use
+- [x] Tables: `raw_episodes` (deleted 24 h after understanding), `timeline_spans`, `episodes` (with embedding), `threads`, `digests`, `devices`; row-level security per user
+- [x] Ingest Edge Function → `raw_episodes` → pgmq queue; pg_cron calls the understand function every minute, and failed work retries after its visibility timeout
+- [x] Timeline spans by rules: exact app and window spans with durations, built on the device
+- [x] One Groq call per closed episode through an OpenAI-compatible client (provider = base URL + key, so Cerebras is a drop-in fallback), with JSON-schema output validated and retried once on failure: `worked_on`, `context`, `actions`, `important`, `topics`, `people`, `importance`, `continues_previous`, `thread`, `thread_title`, `evidence`; the input is the previous episode, candidate threads, the timeline and the condensed text. Measured live: ~1.3k tokens and 1.5 s per episode with `reasoning_effort: low`; after 4 failed attempts an episode keeps a rules-only memory 
+- [x] Embeddings with Supabase's built-in gte-small (384 dimensions); threads link episodes of the same project across days (similarity, confirmed by the model); daily digests hourly for users whose day is over (after 3 am their time)
+- [x] One search function: keywords + embeddings + recency decay + importance, with time filters (golden paraphrases: 20/20 in the top 3, 16 first); the search window gets an "All devices" option, and local keyword search stays for offline use
 
 **MCP server for AI agents**
 
-- [ ] Edge Function with `createMcpHandler` (Streamable HTTP); OAuth 2.1 through Supabase Auth (`withOAuthProtectedResource`, `withSupabase({ auth: 'user' })`), so every call runs as the user under row-level security (written, not deployed)
-- [ ] Read-only tools taking exact time ranges: `search_memory`, `get_timeline`, `get_episode`, `list_threads` / `get_thread`, `daily_digest` (written, not deployed)
-- [ ] Changed 2026-09-27: dynamic client registration on, because MCP clients register themselves (Supabase's MCP guide requires it); each new client still needs your approval on Recall's consent page (`localhost:8766/oauth/consent`, signed in already, nonce-protected)
+- [x] Edge Function with `createMcpHandler` (Streamable HTTP); OAuth 2.1 through Supabase Auth (`withOAuthProtectedResource`, `withSupabase({ auth: 'user' })`), so every call runs as the user under row-level security
+- [x] Read-only tools taking exact time ranges: `search_memory`, `get_timeline`, `get_episode`, `list_threads` / `get_thread`, `daily_digest`
+- [x] Changed 2026-09-27: dynamic client registration on, because MCP clients register themselves (Supabase's MCP guide requires it); each new client still needs your approval on Recall's consent page (`localhost:8766/oauth/consent`, signed in already, nonce-protected)
 - [x] Prompt-injection guard: captured text is returned as quoted data, and instruction-like lines are flagged (the model also ignored an injected line in a live test)
 - [ ] Stretch: the same tools as a local MCP server over the device database, for offline agents
 - [ ] Stretch: a CPU governor that keeps Recall under its budget by adjusting capture delay and read limits
 
 **Gate M7:** two device IDs sync, and device B finds an episode captured on device A. An AI agent connected over MCP answers "what was I working on between X and Y?" with evidence; another user's token sees nothing. Episodes appear within 2 min of ending. Cut the network mid-sync; after reconnecting, the cloud has no gaps and no duplicates. Segmentation boundary F1 and redaction precision and recall are reported from the test fixtures. Push, tag `m7-cloud`.
+
+Status 2026-09-27: deployed. `pytest -q --cloud` (6 tests, two throwaway users) passes: device 2 finds device 1's meeting by paraphrase, understood 6–58 s after upload (the understand job runs every minute); another user's token sees nothing over REST, search or MCP; a re-sent batch adds nothing; an agent connects through OAuth (dynamic registration, Recall's consent page, PKCE) and reads memory over MCP; yesterday gets a digest; golden paraphrases 20/20 in the top 3. The fake-cloud network-cut test passes. Redaction precision/recall 1.00 and segmentation boundary F1 1.00 on the fixtures (scripted, so real use will be lower). Still to do: a real agent (Claude Code) on your own account, and tag `m7-cloud`.
 
 ### Phase 8 · Demo polish (6 h)
 
@@ -299,7 +301,7 @@ Every phase runs the same short loop, so the latest green tag on GitHub is alway
 
 1. Build the smallest slice that completes one checklist item.
 2. Run `pytest -q` (unit tests, about 1 s) and `python scripts/smoke.py`.
-3. Commit when green. At a gate, also run `pytest -q --integration` (real windows, audio and Node, about 35 s) and the perf check, then push and tag.
+3. Commit when green. At a gate, also run `pytest -q --integration` (real windows, audio and Node, about 35 s) and the perf check, then push and tag. From M7 on, also `pytest -q --cloud` (the deployed cloud with throwaway users, about 1 min, a few Groq calls) and `npx deno test supabase/functions/tests`.
 4. A red gate blocks the next phase. If it's still red when its timebox ends, cut scope from the *Cut list*.
 
 **Test layers**
