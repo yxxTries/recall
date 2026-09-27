@@ -1,10 +1,14 @@
 """The search window: a hidden pywebview page with a small Python API behind it."""
 import ctypes
+import json
 import logging
 import os
 import re
 from datetime import datetime, timedelta
 from pathlib import Path
+from urllib.parse import quote
+
+from recall.sync.cloud import CloudError
 
 log = logging.getLogger(__name__)
 PAGE = Path(__file__).with_name("search.html")
@@ -44,19 +48,44 @@ def copy_to_clipboard(text: str) -> bool:
         user32.CloseClipboard()
 
 
+def cloud_results(rows: list[dict], app: str = "") -> list[dict]:
+    """Understood episodes from any device, shaped like local results."""
+    return [{"title": r["worked_on"], "text": "\n".join(r.get("important") or r.get("evidence") or []),
+             "app": (r.get("apps") or [""])[0], "url": "", "source": "cloud", "start": r["started"], "time": r["ended"]}
+            for r in rows if not app or app in (r.get("apps") or [])]
+
+
 class SearchApi:
     """Called from the page as pywebview.api.<method>. Only public methods are exposed."""
 
-    def __init__(self, store, on_hide=None) -> None:
+    def __init__(self, store, on_hide=None, cloud=None) -> None:
         self._store = store
         self._on_hide = on_hide
+        self._cloud = cloud
 
-    def search(self, query: str, app: str = "", time_range: str = "any") -> list[dict]:
+    def search(self, query: str, app: str = "", time_range: str = "any", where: str = "device") -> list[dict]:
         query = query.strip()
         filters = {"app": app or None, "since": since_for(time_range)}
+        if where == "all" and self.cloud():
+            try:
+                return self._search_cloud(query, app, filters["since"])
+            except CloudError as e:
+                log.warning("cloud search failed, showing this device: %s", e)  # offline: local search still works
         rows = self._store.search(query, k=20, **filters) if query else self._store.recent(k=20, **filters)
         return [{"title": row["summary"], "text": row["key_lines"], "app": row["app"], "url": row["url"],
                  "source": row["source"], "start": row["started"], "time": row["ended"]} for row in rows]
+
+    def _search_cloud(self, query: str, app: str, since: str | None) -> list[dict]:
+        since = datetime.fromisoformat(since).astimezone().isoformat() if since else None
+        if query:
+            rows = self._cloud.call("search", json.dumps({"query": query, "since": since, "k": 20}).encode())["results"]
+        else:
+            rows = self._cloud.select("episodes", "select=started,ended,apps,worked_on,important,evidence"
+                                      "&order=ended.desc&limit=20" + (f"&ended=gte.{quote(since)}" if since else ""))
+        return cloud_results(rows, app)
+
+    def cloud(self) -> bool:
+        return bool(self._cloud and self._cloud.signed_in)
 
     def apps(self) -> list[str]:
         return self._store.apps()
@@ -74,10 +103,10 @@ class SearchApi:
 
 
 class SearchWindow:
-    def __init__(self, store) -> None:
+    def __init__(self, store, cloud=None) -> None:
         import webview  # loads .NET/WebView2; keep it out of import time for tests
 
-        self.api = SearchApi(store, on_hide=self.hide)
+        self.api = SearchApi(store, on_hide=self.hide, cloud=cloud)
         self.visible = False
         self._closing_for_real = False
         self.window = webview.create_window(

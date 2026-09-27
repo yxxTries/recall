@@ -1,4 +1,5 @@
 """Phase 4: the search window's API, filters and helpers."""
+import json
 import os
 import subprocess
 import sys
@@ -65,3 +66,34 @@ def test_openable_urls():
     assert openable("https://example.com") == "https://example.com"
     assert openable("C:/Users/me/page.html") == "file:///C:/Users/me/page.html"
     assert openable("vscode://file/C:/dev/recall/store.py:40") == "vscode://file/C:/dev/recall/store.py:40"
+
+
+class FakeCloud:
+    signed_in = True
+
+    def __init__(self, fail=False):
+        self.fail, self.calls = fail, []
+
+    def call(self, function, body, headers=None, timeout=60):
+        from recall.sync.cloud import CloudError
+        if self.fail:
+            raise CloudError(0, "offline")
+        self.calls.append((function, json.loads(body)))
+        return {"results": [{"worked_on": "Chose Contoso as hackathon sponsor", "important": ["Tell Fabrikam by Thursday"],
+                             "evidence": [], "apps": ["ms-teams.exe"], "started": "2026-09-27T13:05:00+00:00",
+                             "ended": "2026-09-27T13:19:00+00:00"}]}
+
+
+def test_all_devices_searches_the_cloud_and_falls_back_offline(api):
+    cloud = FakeCloud()
+    api._cloud = cloud
+    [hit] = api.search("which sponsor did we pick", time_range="any", where="all")
+    assert hit == {"title": "Chose Contoso as hackathon sponsor", "text": "Tell Fabrikam by Thursday",
+                   "app": "ms-teams.exe", "url": "", "source": "cloud", "start": "2026-09-27T13:05:00+00:00",
+                   "time": "2026-09-27T13:19:00+00:00"}
+    assert cloud.calls == [("search", {"query": "which sponsor did we pick", "since": None, "k": 20})]
+    assert api.search("which sponsor did we pick", app="code.exe", where="all") == []  # app filter applies
+    api._cloud = FakeCloud(fail=True)
+    assert api.search("vector database", where="all") == api.search("vector database")  # offline: this device
+    api._cloud = None
+    assert not api.cloud() and api.search("vector database", where="all") == api.search("vector database")

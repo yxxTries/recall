@@ -87,6 +87,11 @@ class CloudSession:
             self._auth("refresh_token", {"refresh_token": self.session["refresh_token"]})
         return self.session["access_token"]
 
+    def select(self, table: str, query: str, timeout: float = 30) -> list:
+        """Read rows through the REST API as the signed-in user (row-level security applies)."""
+        return request("GET", f"{self.url}/rest/v1/{table}?{query}",
+                       {"Authorization": f"Bearer {self.token()}", "apikey": self.key}, timeout=timeout)
+
     def call(self, function: str, body: bytes, headers: dict | None = None, timeout: float = 60) -> dict:
         """POST to an Edge Function as the signed-in user."""
         base = {"Authorization": f"Bearer {self.token()}", "apikey": self.key, "Content-Type": "application/json"}

@@ -163,7 +163,7 @@ class TrayApp:
 
         from recall.ui.search import SearchWindow
 
-        self.search = SearchWindow(self.store)
+        self.search = SearchWindow(self.store, self.sync.cloud)
         self.icon.run_detached(setup=self.on_ready)
         # The search window's UI loop owns the main thread; like the tray's, it idles in GetMessage.
         webview.start()

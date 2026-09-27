@@ -14,6 +14,7 @@ import pytest
 
 from recall.sync.cloud import ENV_FILE, CloudSession, request, settings
 from recall.sync.uploader import SyncWorker
+from recall.ui.search import SearchApi
 
 pytestmark = pytest.mark.cloud
 URL, PUBLISHABLE = settings()
@@ -113,6 +114,11 @@ def test_device_b_finds_by_meaning_what_device_a_captured(users, tmp_path):
     top = found["results"][0]
     print(f"search score {top['score']:.2f}: {top['worked_on']}")
     assert top["episode_id"] == episode["episode_id"] and top["device_id"] == "device-1"
+
+    # The search window's "All devices" option on device 2.
+    window = SearchApi(store=None, cloud=device_2)
+    assert window.search("", where="all")[0]["title"] == episode["worked_on"]
+    assert window.search("who is sponsoring the hackathon", time_range="week", where="all")[0]["source"] == "cloud"
 
     # The same memory through MCP, as an AI agent would see it.
     tools = mcp(device_2, "tools/list", {})["result"]["tools"]

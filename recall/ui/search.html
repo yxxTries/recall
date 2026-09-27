@@ -63,6 +63,10 @@
       <option value="today">Today</option>
       <option value="week">This week</option>
     </select>
+    <select id="where" hidden>
+      <option value="device">This device</option>
+      <option value="all">All devices</option>
+    </select>
     <span class="drag"></span>
   </div>
 </header>
@@ -74,9 +78,9 @@
 <div id="toast"></div>
 <script>
   const $ = (s) => document.querySelector(s);
-  const SOURCES = { text: "Screen", audio: "Audio", ocr: "OCR" };
+  const SOURCES = { text: "Screen", audio: "Audio", ocr: "OCR", cloud: "Cloud" };
   const STOPWORDS = new Set("the and for are was were that this with from what when where which about have has you your how did does its".split(" "));
-  let results = [], selected = 0, timer = null, lastQuery = "";
+  let results = [], selected = 0, timer = null, lastQuery = "", runs = 0;
 
   const escapeHtml = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -133,13 +137,14 @@
   }
 
   async function run() {
-    lastQuery = $("#q").value;
-    results = await pywebview.api.search(lastQuery, $("#app").value, $("#range").value);
-    selected = 0;
+    const run = ++runs, query = $("#q").value;
+    const found = await pywebview.api.search(query, $("#app").value, $("#range").value, $("#where").value);
+    if (run !== runs) return; // a newer search started while the cloud answered
+    lastQuery = query; results = found; selected = 0;
     render();
   }
 
-  function schedule() { clearTimeout(timer); timer = setTimeout(run, 180); }
+  function schedule() { clearTimeout(timer); timer = setTimeout(run, $("#where").value === "all" ? 400 : 180); }
 
   function toast(msg) {
     const t = $("#toast");
@@ -162,18 +167,21 @@
     $("#app").value = apps.includes(current) ? current : "";
   }
 
-  window.onShown = () => { $("#q").focus(); $("#q").select(); loadApps(); run(); };
+  async function loadWhere() { $("#where").hidden = !(await pywebview.api.cloud()); }
+
+  window.onShown = () => { $("#q").focus(); $("#q").select(); loadApps(); loadWhere(); run(); };
 
   $("#q").addEventListener("input", schedule);
   $("#app").addEventListener("change", run);
   $("#range").addEventListener("change", run);
+  $("#where").addEventListener("change", run);
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") { pywebview.api.hide(); }
     else if (e.key === "ArrowDown") { selected = Math.min(selected + 1, results.length - 1); render(); e.preventDefault(); }
     else if (e.key === "ArrowUp") { selected = Math.max(selected - 1, 0); render(); e.preventDefault(); }
     else if (e.key === "Enter") { activate(); }
   });
-  window.addEventListener("pywebviewready", () => { loadApps(); run(); });
+  window.addEventListener("pywebviewready", () => { loadApps(); loadWhere(); run(); });
 </script>
 </body>
 </html>
