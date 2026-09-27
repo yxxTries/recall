@@ -8,11 +8,10 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote
 
-from recall.sync.cloud import CloudError
+from recall.sync.cloud import DASHBOARD, CloudError
 
 log = logging.getLogger(__name__)
 PAGE = Path(__file__).with_name("search.html")
-DASHBOARD = "https://recall-memory-yxxtries.vercel.app"  # shows one episode in full at /#<episode_id>
 
 
 def since_for(time_range: str, now: datetime | None = None) -> str | None:
@@ -95,6 +94,10 @@ class SearchApi:
     def open(self, url: str) -> None:
         os.startfile(openable(url))
         self.hide()
+
+    def sign_in(self) -> None:
+        from recall.sync.consent import ORIGIN
+        self.open(ORIGIN + "/")
 
     def copy(self, text: str) -> bool:
         return copy_to_clipboard(text)

@@ -45,6 +45,8 @@
   footer { display: flex; justify-content: space-between; padding: 7px 16px; border-top: 1px solid var(--line);
     font-size: 11.5px; color: var(--muted); }
   kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; font: inherit; }
+  footer a { color: var(--accent); text-decoration: none; margin-right: 10px; }
+  footer a:hover { text-decoration: underline; }
   #toast { position: fixed; bottom: 42px; left: 50%; transform: translateX(-50%); background: var(--text);
     color: var(--bg); padding: 5px 12px; border-radius: 6px; font-size: 12.5px; opacity: 0; transition: opacity .2s; }
   #toast.show { opacity: 1; }
@@ -73,7 +75,7 @@
 <main id="results"></main>
 <footer>
   <span><kbd>↑</kbd> <kbd>↓</kbd> select &nbsp; <kbd>Enter</kbd> open or copy &nbsp; <kbd>Esc</kbd> close</span>
-  <span id="count"></span>
+  <span><a id="signin" href="#" hidden>Sign in to search all your devices</a><span id="count"></span></span>
 </footer>
 <div id="toast"></div>
 <script>
@@ -172,8 +174,10 @@
   async function loadWhere() {
     const cloud = await pywebview.api.cloud();
     $("#where").hidden = !cloud;
+    $("#signin").hidden = cloud;
     if (cloud && !chosePlace) $("#where").value = "all";
   }
+  $("#signin").addEventListener("click", (e) => { e.preventDefault(); pywebview.api.sign_in(); });
 
   window.onShown = () => { $("#q").focus(); $("#q").select(); loadApps(); loadWhere(); run(); };
 

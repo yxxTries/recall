@@ -17,6 +17,7 @@ from recall.config import data_dir
 
 ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
 REFRESH_MARGIN = 60  # seconds before expiry
+DASHBOARD = "https://recall-memory-yxxtries.vercel.app"  # shows one episode in full at /#<episode_id>
 
 
 def settings() -> tuple[str, str]:
@@ -34,6 +35,16 @@ class CloudError(Exception):
     def __init__(self, status: int, message: str) -> None:
         super().__init__(f"{status}: {message}")
         self.status = status
+        self.message = message
+
+    @property
+    def reason(self) -> str:
+        """What Supabase said, for people: its JSON error's message, or the raw text."""
+        try:
+            body = json.loads(self.message)
+            return body.get("msg") or body.get("error_description") or body.get("message") or self.message
+        except (ValueError, AttributeError):
+            return self.message
 
 
 def request(method: str, url: str, headers: dict, body: bytes | None = None, timeout: float = 30) -> dict:
@@ -64,6 +75,10 @@ class CloudSession:
     @property
     def user_id(self) -> str:
         return self.session["user"]["id"] if self.session else ""
+
+    @property
+    def email(self) -> str:
+        return self.session["user"].get("email", "") if self.session else ""
 
     def _auth(self, grant: str, payload: dict) -> None:
         self.session = request("POST", f"{self.url}/auth/v1/token?grant_type={grant}",

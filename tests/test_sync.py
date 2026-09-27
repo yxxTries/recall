@@ -149,6 +149,63 @@ def test_a_revoked_session_signs_out_and_loses_nothing(tmp_path, monkeypatch):
     assert session.signed_in
 
 
+def test_the_account_page_signs_in_and_out_only_from_itself(tmp_path, monkeypatch):
+    import re
+    import urllib.error
+    import urllib.request
+    from urllib.parse import urlencode
+
+    from recall.sync import cloud, consent
+
+    def fake_auth(method, url, headers, body=None, timeout=30):
+        creds = json.loads(body)
+        if url.endswith("/signup"):  # this project confirms new accounts by email: no session yet
+            return {"id": "u2", "email": creds["email"], "confirmation_sent_at": "2026-09-27T09:00:00Z"}
+        if creds["password"] != "right-password":
+            raise CloudError(400, '{"code":400,"error_code":"invalid_credentials","msg":"Invalid login credentials"}')
+        return {"access_token": "a", "refresh_token": "r", "expires_at": 9e9, "user": {"id": "u1", "email": creds["email"]}}
+
+    monkeypatch.setattr(cloud, "request", fake_auth)
+    session = cloud.CloudSession(tmp_path / "cloud.json", url="https://p.supabase.co", key="k")
+    changed = []
+    server = consent.ConsentServer(session, port=0, on_account=lambda: changed.append(session.signed_in))
+    base = f"http://127.0.0.1:{server.httpd.server_address[1]}"
+
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args):
+            return None
+
+    def post(form: dict, origin: str | None = None) -> tuple[int, str]:
+        req = urllib.request.Request(base + "/account", data=urlencode(form).encode(), headers={"Origin": origin} if origin else {})
+        try:
+            with urllib.request.build_opener(NoRedirect).open(req) as res:
+                return res.status, res.read().decode()
+        except urllib.error.HTTPError as e:
+            return e.code, e.read().decode()
+
+    server.start()
+    try:
+        page = urllib.request.urlopen(base + "/").read().decode()
+        assert "Sign in" in page and "Create account" in page
+        nonce = re.search(r"name=nonce value='([^']+)'", page)[1]
+        me = {"email": "me@example.com", "password": "right-password"}
+        assert post({**me, "action": "signin", "nonce": "forged"})[0] == 403
+        assert post({**me, "action": "signin", "nonce": nonce}, origin="https://evil.example")[0] == 403  # login CSRF
+        assert not session.signed_in and changed == []
+        status, page = post({**me, "password": "wrong", "action": "signin", "nonce": nonce})
+        assert status == 400 and "match a Recall account" in page and not session.signed_in
+        assert "value='me@example.com'" in page  # no retyping the email
+        status, page = post({"email": "new@example.com", "password": "pw123456", "action": "signup", "nonce": nonce})
+        assert status == 200 and "Open the link we emailed you" in page and not session.signed_in
+        assert post({**me, "action": "signin", "nonce": nonce}, origin=consent.ORIGIN)[0] == 303 and changed == [True]
+        page = urllib.request.urlopen(base + "/").read().decode()
+        assert "Signed in as <b>me@example.com</b>" in page and "https://p.supabase.co/functions/v1/mcp" in page
+        assert post({"action": "signout", "nonce": nonce})[0] == 303 and changed == [True, False]
+        assert not session.signed_in and not (tmp_path / "cloud.json").exists()
+    finally:
+        server.stop()
+
+
 def test_consent_page_approves_only_with_its_nonce(tmp_path, monkeypatch):
     import re
     import urllib.error

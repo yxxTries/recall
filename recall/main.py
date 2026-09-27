@@ -12,8 +12,8 @@ from recall.capture.vscode import EditorCapture, IngestServer
 from recall.config import data_dir, load_config, save_config
 from recall.memory.store import MemoryStore
 from recall.memory.worker import MemoryWorker
-from recall.sync.cloud import CloudSession
-from recall.sync.consent import ConsentServer
+from recall.sync.cloud import DASHBOARD, CloudSession
+from recall.sync.consent import ORIGIN, ConsentServer
 from recall.sync.uploader import SyncWorker
 from recall.ui.hotkey import SEND_CANDIDATES, Hotkey
 from recall.watcher import AudioWatcher, ForegroundWatcher, windowed_apps
@@ -55,6 +55,7 @@ class TrayApp:
         live = set() if self.paused else self.tracked
         self.store = MemoryStore(data_dir() / "memory.db", config["device_id"])
         self.sync = SyncWorker(data_dir(), CloudSession(), config["device_id"], socket.gethostname())
+        self.sync.on_signed_out = self.on_signed_out
         self.memory = MemoryWorker(self.store, self.sync)
         self.consent = None  # started in on_ready: the OAuth consent page for AI agents
         self.text = TextCapture(self.memory.submit)
@@ -76,8 +77,12 @@ class TrayApp:
                                  lambda icon, item: self.toggle_search(), default=True),
                 pystray.MenuItem(lambda item: f"Send to cloud now   {self.send_hotkey.label}".strip(),
                                  lambda icon, item: self.send_now()),
+                pystray.MenuItem("Open dashboard", lambda icon, item: os.startfile(DASHBOARD)),
                 pystray.MenuItem("Tracked apps", pystray.Menu(self.app_items)),
                 pystray.MenuItem("Pause", self.toggle_pause, checked=lambda item: self.paused),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem(lambda item: f"Cloud: {self.sync.cloud.email}" if self.sync.cloud.signed_in
+                                 else "Sign in to the cloud…", lambda icon, item: self.open_account()),
                 pystray.MenuItem("Quit", self.quit),
             ),
         )
@@ -89,7 +94,7 @@ class TrayApp:
     def send_now(self) -> None:
         # For demos: what you just did reaches the cloud now, not after 5 idle minutes.
         if not self.sync.cloud.signed_in:
-            self.icon.notify("Not signed in to the cloud", "Recall")
+            self.icon.notify("Not signed in to the cloud: choose Sign in to the cloud in Recall's menu", "Recall")
             return
         log.info("send to cloud now")
         self.sync.send_now(self.on_sent)
@@ -103,6 +108,18 @@ class TrayApp:
             message = "Nothing new to send"
         log.info(message)
         self.icon.notify(message, "Recall")
+
+    def open_account(self) -> None:
+        # Sign in, create an account or sign out on Recall's own page: no terminal needed.
+        if self.consent:
+            os.startfile(ORIGIN + "/")
+        else:
+            self.icon.notify("Port 8766 is busy; sign in from a terminal: python -m recall.sync.cloud login", "Recall")
+
+    def on_signed_out(self) -> None:
+        self.icon.update_menu()
+        self.icon.notify("Signed out of the cloud. Choose Sign in to the cloud in Recall's menu; "
+                         "nothing is lost meanwhile", "Recall")
 
     def on_vscode_view(self, view: dict) -> None:
         # The extension posts whenever VS Code has focus; Recall decides whether it's tracked.
@@ -170,7 +187,7 @@ class TrayApp:
         self.sync.start()
         log.info("cloud sync %s", "on" if self.sync.cloud.signed_in else "off (not signed in)")
         try:
-            self.consent = ConsentServer(self.sync.cloud)
+            self.consent = ConsentServer(self.sync.cloud, on_account=self.icon.update_menu)
             self.consent.start()
         except OSError:
             log.warning("agent consent page unavailable: port in use")
