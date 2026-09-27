@@ -70,7 +70,7 @@ CLOUD (Supabase, private per user)
 
 **3. Phase 8 · Demo (MVP on text capture)**
 
-- [ ] Seed the demo dataset; rehearse the script 3 times
+- [ ] Seed the demo dataset (`scripts/seed_demo.py --cloud` queues it for the account Recall is signed in to: use a separate demo account); rehearse the script 3 times
 - [x] README: setup, architecture, privacy, MCP setup
 - [ ] Final backup video
 - **Gate M8:** the demo runs twice in a row with no restarts; tag `v1.0-demo`

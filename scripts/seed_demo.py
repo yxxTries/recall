@@ -1,7 +1,10 @@
 """Load a known demo dataset into the memory store (respects RECALL_HOME).
 
-Usage: python scripts/seed_demo.py
+Usage: python scripts/seed_demo.py [--cloud]
+--cloud also queues the demo as episodes for the cloud account Recall is signed in to. They stay in that
+memory like real ones, so sign Recall in to a separate demo account first.
 """
+import socket
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -10,6 +13,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from recall.config import data_dir, load_config  # noqa: E402
 from recall.memory.activity import ActivityTracker  # noqa: E402
 from recall.memory.store import MemoryStore  # noqa: E402
+from recall.sync.cloud import CloudSession  # noqa: E402
+from recall.sync.uploader import SyncWorker  # noqa: E402
 
 # (minutes ago, app, title, url, source, text)
 DEMO = [
@@ -58,19 +63,30 @@ DEMO = [
 
 
 def main() -> int:
+    cloud = "--cloud" in sys.argv[1:]
     config = load_config()
     store = MemoryStore(data_dir() / "memory.db", config["device_id"])
     tracker = ActivityTracker()
     now = datetime.now()
-    records = {}
+    records, events = {}, []
     for minutes, app, title, url, source, text in sorted(DEMO, key=lambda row: -row[0]):  # oldest first
         e = {"type": "text", "source": source, "app": app, "title": title, "url": url, "text": text,
              "time": (now - timedelta(minutes=minutes)).isoformat(timespec="seconds")}
+        events.append(e)
         record = tracker.add(e)
         records[record["activity_id"]] = record  # the latest state of each activity
     for record in records.values():
         store.upsert(record)
     print(f"seeded {len(records)} demo activities into {data_dir() / 'memory.db'} ({store.count()} total)")
+    if cloud:
+        # Queued in Recall's outbox, not uploaded from here: the running Recall sends them with its own sign-in.
+        sync = SyncWorker(data_dir(), CloudSession(), config["device_id"], socket.gethostname())
+        sync.add(events)
+        sync.stop()
+        if sync.cloud.signed_in:
+            print(f"queued as episodes for {sync.cloud.session['user']['email']}; Recall uploads them within a minute")
+        else:
+            print("queued as episodes; they upload once Recall is signed in")
     return 0
 
 

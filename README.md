@@ -117,7 +117,7 @@ Deploy the cloud to the project in `.env` (needs `SUPABASE_ACCESS_TOKEN`, `SUPAB
 .venv\Scripts\python scripts/deploy_cloud.py
 ```
 
-Other scripts: `scripts/perf_monitor.py --minutes 30` logs Recall's CPU and RAM; `scripts/seed_demo.py` loads a demo dataset into the local store; `scripts/eval_memory.py` scores memory accuracy on 12 realistic capture streams with known answers (`--local` checks the device side without using the LLM).
+Other scripts: `scripts/perf_monitor.py --minutes 30` logs Recall's CPU and RAM; `scripts/seed_demo.py` loads a demo dataset into the local store (`--cloud` also queues it for the signed-in account; use a separate demo account, since it stays in that memory); `scripts/eval_memory.py` scores memory accuracy on 12 realistic capture streams with known answers (`--local` checks the device side without using the LLM).
 
 Budgets: idle CPU under 0.5%, active text capture under 3%, RAM under 600 MB, text searchable on the device under 5 s, episode understood in the cloud under 2 min.
 
