@@ -6,7 +6,7 @@ Sep 26, 2026 · @Amil
 
 ## Overview
 
-Recall is a Windows tray app. It captures text and audio from the apps you pick and keeps a light activity record on the device. Redacted captures go to the cloud, where the OpenAI API turns them into a timeline of episodes: what you worked on, what you did and what mattered. A private memory database serves that memory to all your devices and, through an MCP server, to your AI agents. The hackathon win is one live demo: use a tracked app, then find what you were doing, by meaning, from Recall or from an AI agent.
+Recall is a Windows tray app. It captures text and audio from the apps you pick and keeps a light activity record on the device. Redacted captures go to the cloud, where a free LLM on Groq turns them into a timeline of episodes: what you worked on, what you did and what mattered. A private memory database serves that memory to all your devices and, through an MCP server, to your AI agents. The hackathon win is one live demo: use a tracked app, then find what you were doing, by meaning, from Recall or from an AI agent.
 
 **Demo moment:** read an article in a tracked browser and work in VS Code. Press the hotkey and type a paraphrase like "that bit about vector databases"; Recall shows the episode with app, window, time and evidence. Finale: ask an AI agent connected to Recall's MCP server "what was I working on this afternoon?" and it answers from the timeline.
 
@@ -34,8 +34,8 @@ The plan defaults to Python in a single process. The first five decisions were s
 | Answers | Changed 2026-09-26: on-device activity records + keyword search; understanding, embeddings and speech-to-text run in the cloud | Local embeddings + semantic search (the original default) | Recall keeps the general context, not every line; the device stays light (no models) |
 | Cloud | Supabase: Postgres + pgvector, pgmq + pg_cron, Edge Functions, Auth as the OAuth server for MCP | Own FastAPI + Postgres | Database, queue, scheduler, functions and auth with no servers to run; can be self-hosted |
 | Git flow | Push to `main`, tag every milestone | Branch + PR per phase | Speed; tags give known-good rollback points before the demo |
-| Understanding (added) | OpenAI Responses API with structured outputs; `gpt-6-sol` per episode (to confirm) | `gpt-6-luna` (cheaper) or `gpt-6-astra` (flagship) | Guaranteed JSON shape; about $0.02 per episode |
-| Embeddings (added) | OpenAI `text-embedding-3-small` at 512 dimensions (to confirm) | Supabase's built-in gte-small (free, 384 dimensions) | One provider; $0.02 per 1M tokens |
+| Understanding (added) | Groq free tier (OpenAI-compatible API, JSON-schema output), e.g. `gpt-oss-120b`; Cerebras free tier as fallback | OpenAI (not available to us); Gemini free tier (trains on prompts) | Free, no training on your data; 1,000 requests/day covers ~48 episodes/day |
+| Embeddings (added) | Supabase's built-in gte-small (384 dimensions) inside Edge Functions | A paid embedding API | Free, no extra key, no data leaves Supabase |
 | Agent access (added) | Private remote MCP server: read-only tools, OAuth 2.1 through Supabase Auth | No agent access | Claude Code, Cursor and other agents can use your memory |
 | Raw text in the cloud (added) | Redacted on the device; deleted 24 h after it's summarized (to confirm) | Only 5 key lines per activity leave the device | The model needs the full text to understand it |
 
@@ -59,7 +59,7 @@ DEVICE (one low-priority process, no models)
                      -> [Audio capture: loopback, silence gate] --------------+-> [Activity records] -> [Local keyword search, offline]
                                                                               \-> [Segment episodes] -> [Filter + dedupe] -> [Redact] -> [zstd outbox]
 CLOUD (Supabase, private per user)                                                                                            |
-[Ingest] -> [Raw events, kept 24 h] -> [OpenAI: episodes, embeddings, speech-to-text] -> [Timeline, episodes, threads, digests]
+[Ingest] -> [Raw events, kept 24 h] -> [Groq: episodes; gte-small: embeddings; speech-to-text] -> [Timeline, episodes, threads, digests]
                                                                                           -> [Search from any device]
                                                                                           -> [MCP server] -> [AI agents]
 ```
@@ -252,7 +252,7 @@ Left open on 2026-09-26 by choice; the build moves on to Phase 7. Already checke
 
 ### Phase 7 · Cloud memory and MCP (8 h)
 
-Understanding happens over time, in the cloud. The device splits your work into episodes and sends redacted text; the OpenAI API turns each episode into structured memory; a private database serves it to Recall and, over MCP, to AI agents. The device side is algorithmic depth with no models.
+Understanding happens over time, in the cloud. The device splits your work into episodes and sends redacted text; a free LLM on Groq turns each episode into structured memory; a private database serves it to Recall and, over MCP, to AI agents. The device side is algorithmic depth with no models.
 
 **Device side**
 
@@ -268,8 +268,8 @@ Understanding happens over time, in the cloud. The device splits your work into 
 - [ ] Tables: `raw_events` (deleted 24 h after summarizing), `timeline_spans`, `episodes` (with embedding), `threads`, `digests`, `devices`; row-level security per user
 - [ ] Ingest Edge Function → `raw_events` → pgmq queue; pg_cron hands work to the understanding function, and failed work retries after its visibility timeout
 - [ ] Timeline spans by rules: exact app and window spans with durations
-- [ ] One OpenAI Responses API call per closed episode, with structured outputs: `worked_on`, `context`, `actions`, `important`, `topics`, `people`, `importance`, `continues_previous`, `evidence`; the input is the previous episode, the thread state, the timeline and the condensed text (about 8k tokens)
-- [ ] Embeddings (`text-embedding-3-small`, 512 dimensions); threads link episodes of the same project across days (similarity, confirmed by the model); daily digests through the Batch API
+- [ ] One Groq call per closed episode through an OpenAI-compatible client (provider = base URL + key, so Cerebras is a drop-in fallback), with JSON-schema output validated and retried once on failure: `worked_on`, `context`, `actions`, `important`, `topics`, `people`, `importance`, `continues_previous`, `evidence`; the input is the previous episode, the thread state, the timeline and the condensed text (about 5k tokens, to fit Groq's free limit of 8K tokens per minute)
+- [ ] Embeddings with Supabase's built-in gte-small (384 dimensions); threads link episodes of the same project across days (similarity, confirmed by the model); daily digests scheduled off-peak
 - [ ] One search function: keywords + embeddings + recency decay + importance, with time filters (the golden paraphrase test moves here); the search window gets an "All devices" toggle, and local keyword search stays for offline use
 
 **MCP server for AI agents**
@@ -365,8 +365,8 @@ The biggest schedule risks are the size of Phase 7 and per-process audio capture
 | Large UIA trees (long web pages) read slowly | CPU spikes, lag in the tracked app | Cache requests, 150 ms and 2,000-node caps, debounce, worker thread |
 | Cloud speech-to-text is slow, costly or offline | Speech not searchable within 30 s | Upload only gated speech; queue and retry; seeded transcripts for the demo |
 | Recording other people on calls | Consent and legal exposure | Mic off by default; consent note in the UI and README |
-| Personal data sent to OpenAI and stored in the cloud | Privacy exposure | Redaction on the device, raw text deleted after 24 h, row-level security, pre-registered MCP clients; check the OpenAI organization's data retention settings |
+| Personal data sent to Groq and stored in the cloud | Privacy exposure | Redaction on the device, raw text deleted after 24 h, row-level security, pre-registered MCP clients; a provider that doesn't train on prompts |
 | Captured web pages carry prompt injection to agents over MCP | An agent is misled | Read-only tools; captured text returned as quoted data; instruction-like lines flagged |
-| OpenAI cost or latency spikes | Budget or episode latency blown | One call per episode, not per fixed window; about 8k-token condensed input; a cheaper model tier; Batch API for digests |
+| Groq free-tier limits (8K tokens/min, 1,000 requests/day) | Episodes queue up or fail | One call per episode, not per fixed window; about 5k-token condensed input; queue with retry; Cerebras fallback |
 | Phase 7 is the largest phase | The cloud slips past its timebox | Split device and cloud sides across people; cut from the top of the cut list |
 | Venue Wi-Fi fails | Cloud step fails live | Second device pre-synced; backup videos from M4 and M8 |
