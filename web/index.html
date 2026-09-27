@@ -110,6 +110,14 @@ button { cursor: pointer; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 4px 12px; font-size: 13px; color: var(--muted); }
 .chip:hover { color: var(--ink); border-color: var(--muted); }
+/* the ask box and this conversation's questions stay in reach while you scroll */
+.dock { position: sticky; top: 0; z-index: 5; background: var(--bg); margin-inline: -16px; padding: 10px 16px; display: grid; gap: 8px; }
+.dock.stuck { border-bottom: 1px solid var(--line); }
+.qnav { display: flex; gap: 6px; align-items: center; overflow-x: auto; padding-bottom: 2px; }
+.qnav .chip { flex: none; max-width: 24ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qnav .back { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); font-weight: 500; }
+.qnav .link-btn { flex: none; margin-left: 4px; font-size: 13px; }
+.convo { display: grid; gap: 14px; margin-top: 6px; }
 #answer { display: grid; gap: 18px; }
 .turn { display: grid; gap: 10px; }
 .turn + .turn { border-top: 1px solid var(--line); padding-top: 18px; }
@@ -133,8 +141,10 @@ button { cursor: pointer; }
 .tab { border: 0; background: none; padding: 10px 12px; color: var(--muted); font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
 .tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
 .panel { padding-block: 8px 48px; }
-.toolbar { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
 .toolbar select { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 5px 8px; }
+.toolbar .find { flex: 1 1 240px; min-width: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 5px 10px; }
+.toolbar .check { display: flex; align-items: center; gap: 6px; font-size: 14px; }
 .day { margin-top: 22px; }
 .day > .label { padding-bottom: 6px; border-bottom: 1px solid var(--line); display: block; }
 
@@ -145,6 +155,22 @@ button { cursor: pointer; }
 .row > button:hover .what { color: var(--accent); }
 .row .when { white-space: nowrap; font: 13px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
 .row .what { font-weight: 500; }
+/* a memory: what, its summary and whether it's key on the left; project, device and apps on the right */
+.row-head { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: baseline; }
+.row-main { all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-columns: 10.5rem 1fr; gap: 12px; align-items: baseline; padding: 12px 4px; min-width: 0; }
+.row-main:focus-visible { outline: 2px solid var(--accent); }
+.row-main:hover .what { color: var(--accent); }
+.row-head > .meta { padding-block: 12px; max-width: 22rem; }
+.row .body { display: grid; gap: 2px; min-width: 0; }
+.row .summary { color: var(--muted); font-size: 14px; max-width: 75ch; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.row.open .summary { display: block; }
+.pill.key { background: var(--warn-soft); color: var(--warn); margin-left: 8px; }
+.project { all: unset; cursor: pointer; font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); max-width: 20ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project:hover { text-decoration: underline; }
+.project:focus-visible { outline: 2px solid var(--accent); }
+.jumps { display: flex; gap: 16px; flex-wrap: wrap; }
+@keyframes flash { from { background: var(--accent-soft); } to { background: transparent; } }
+.flash { animation: flash 2.4s ease-out; }
 .meta, .apps { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; }
 .app { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--sunk); color: var(--muted); }
 .device { font-size: 12px; padding: 0 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink); white-space: nowrap; }
@@ -172,10 +198,29 @@ pre.raw { white-space: pre-wrap; word-break: break-word; font: 12.5px/1.55 var(-
 .card .row:last-child { border-bottom: 0; }
 .rename { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 4px; }
 .rename input { flex: 1 1 200px; min-width: 0; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.copy { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.card-list > .card { min-width: 0; }
+.copy code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; font: 13px var(--mono); background: var(--sunk); padding: 7px 10px; border-radius: 8px; }
+.grant { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding-block: 10px; border-top: 1px solid var(--line); }
+.grant > div { flex: 1 1 240px; min-width: 0; }
+/* the Allow / Deny page for an AI agent (/oauth/consent) */
+.consent { max-width: 480px; margin: 10vh auto 0; display: grid; gap: 16px; }
+.consent h1 { font: 500 30px/1.2 var(--serif); }
+.consent > div { display: grid; gap: 16px; }
+.consent p { margin: 0; }
+.consent p:empty { display: none; }
+.consent a { color: var(--accent); }
+.consent code { font: 13px var(--mono); word-break: break-all; }
+.actions { display: flex; gap: 8px; }
 .foot { padding-block: 24px 40px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
 
+@media (max-width: 900px) {
+  .row-head { grid-template-columns: 1fr; gap: 0; }
+  .row-head > .meta { justify-content: flex-start; max-width: none; padding: 0 4px 12px calc(10.5rem + 16px); }
+}
 @media (max-width: 640px) {
-  .row > button { grid-template-columns: 1fr; gap: 4px; }
+  .row > button, .row-head, .row-main { grid-template-columns: 1fr; gap: 4px; }
+  .row-head > .meta { padding: 0 4px 12px; max-width: none; }
   .meta, .apps { justify-content: flex-start; }
   .detail { padding-left: 4px; }
   .bar .who span { display: none; }
@@ -205,12 +250,20 @@ pre.raw { white-space: pre-wrap; word-break: break-word; font: 12.5px/1.55 var(-
     </form>
   </section>
 
+  <section class="consent" id="consent" hidden>
+    <h1 id="consent-title">Connect an AI agent?</h1>
+    <div id="consent-body"></div>
+  </section>
+
   <main id="app" hidden>
     <section class="ask">
       <div>
         <h1>Ask your memory</h1>
         <p class="sub" id="where"></p>
       </div>
+    </section>
+    <div id="dock-top"></div>
+    <div class="dock" id="dock">
       <form class="askbox" id="ask-form">
         <input id="ask-q" aria-label="Question" placeholder="What was I working on this afternoon?" autocomplete="off" maxlength="500">
         <select id="ask-range" aria-label="Time range">
@@ -220,9 +273,11 @@ pre.raw { white-space: pre-wrap; word-break: break-word; font: 12.5px/1.55 var(-
         </select>
         <button class="primary" id="ask-go" type="submit">Ask</button>
       </form>
+      <nav class="qnav" id="qnav" aria-label="This conversation" hidden></nav>
+    </div>
+    <section class="convo">
       <div class="chips" id="suggest"></div>
       <div id="answer" aria-live="polite"></div>
-      <button class="link-btn" id="ask-new" type="button" hidden>New conversation</button>
     </section>
 
     <div class="stats" id="stats"></div>
@@ -286,12 +341,56 @@ const many = () => Object.keys(devices).length > 1
 const device = (id) => (many() ? h('span', { class: 'device' }, devices[id] || 'Other device') : null)
 
 // ---------- sign in ----------
+// Supabase Auth sends an AI agent's connection request here: /oauth/consent?authorization_id=…
+const consentRoute = location.pathname.startsWith('/oauth/consent')
+if (consentRoute) {
+  $('signin').querySelector('h1').textContent = 'Sign in to connect an AI agent'
+  $('signin').querySelector('p').textContent = 'An AI agent asked to read your Recall memory. Sign in with your Recall account, then choose Allow or Deny.'
+}
+
 async function show(session) {
   $('signin').hidden = !!session
-  $('app').hidden = $('who').hidden = $('foot').hidden = !session
+  $('who').hidden = !session
+  $('app').hidden = $('foot').hidden = !session || consentRoute
+  $('consent').hidden = !session || !consentRoute
   if (!session) return
   $('email').textContent = session.user.email
-  await load()
+  await (consentRoute ? consent(session) : load())
+}
+
+// Allow or Deny: the agent gets read-only access to this user's memory, and nothing else.
+async function consent(session) {
+  const body = $('consent-body')
+  const id = new URLSearchParams(location.search).get('authorization_id')
+  body.replaceChildren(h('p', { class: 'muted' }, 'Loading the request…'))
+  const { data, error } = id ? await db.auth.oauth.getAuthorizationDetails(id) : { error: { message: 'this link has no request in it' } }
+  if (error) return body.replaceChildren(h('p', { class: 'error' }, `Couldn't load this request (${error.message}). Connect the agent again.`),
+    h('p', {}, h('a', { href: '/' }, 'Open the dashboard')))
+  if (!data.authorization_id && data.redirect_url) return location.replace(data.redirect_url) // allowed before: straight back
+  const client = data.client?.name || data.client?.client_name || data.client?.client_id || 'An AI agent'
+  $('consent-title').textContent = `Connect ${client}?`
+  const status = h('p', { class: 'error', role: 'alert' })
+  const decide = async (allow) => {
+    allowBtn.disabled = denyBtn.disabled = true
+    status.textContent = ''
+    // On success Supabase sends the browser back to the agent.
+    const { error } = await (allow ? db.auth.oauth.approveAuthorization(id) : db.auth.oauth.denyAuthorization(id))
+    if (!error) {
+      status.className = 'muted'
+      status.textContent = 'Returning to the agent…'
+      return
+    }
+    status.textContent = `That didn't work (${error.message}).`
+    allowBtn.disabled = denyBtn.disabled = false
+  }
+  const allowBtn = h('button', { class: 'primary', type: 'button', onclick: () => decide(true) }, 'Allow')
+  const denyBtn = h('button', { class: 'secondary', type: 'button', onclick: () => decide(false) }, 'Deny')
+  body.replaceChildren(
+    h('p', {}, h('b', {}, client), ' wants read-only access to your Recall memory as ', h('b', {}, data.user?.email || session.user.email),
+      ': memories, timeline, projects and daily digests from all your devices. It can\'t change or delete anything.'),
+    h('p', { class: 'muted small' }, 'It will return to ', h('code', {}, data.redirect_uri || '')),
+    h('div', { class: 'actions' }, allowBtn, denyBtn), status,
+    h('p', { class: 'muted small' }, 'You can see and revoke every agent later under Agents on the ', h('a', { href: '/' }, 'dashboard'), '.'))
 }
 
 $('signin-form').addEventListener('submit', async (e) => {
@@ -312,6 +411,42 @@ db.auth.onAuthStateChange((event, session) => {
 // ---------- ask: a conversation with your memory ----------
 const PLACEHOLDER = 'What was I working on this afternoon?'
 let history = [] // the last few questions and answers: a follow-up keeps its context
+let turns = [] // every question in this conversation, with its answer on the page: the dock lists them
+let returnTo = null // the answer a jump to the timeline or a project came from
+
+// Scroll so el sits just below the pinned ask box.
+function scrollToEl(el) {
+  const top = el.getBoundingClientRect().top + scrollY - $('dock').offsetHeight - 12
+  window.scrollTo({ top, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+}
+
+function renderNav() {
+  $('qnav').hidden = !turns.length
+  $('qnav').replaceChildren(...[
+    returnTo?.isConnected ? h('button', { class: 'chip back', type: 'button', onclick: () => {
+      const turn = returnTo
+      returnTo = null
+      renderNav()
+      scrollToEl(turn)
+    } }, '← Back to answer') : null,
+    h('span', { class: 'label' }, 'Asked'),
+    ...turns.map((t) => h('button', { class: 'chip', type: 'button', title: t.question, onclick: () => scrollToEl(t.el) }, t.question)),
+    h('button', { class: 'link-btn', type: 'button', onclick: newConversation }, 'New conversation'),
+  ].filter(Boolean))
+}
+
+function newConversation() {
+  history = []
+  turns = []
+  returnTo = null
+  $('answer').replaceChildren()
+  renderNav()
+  $('suggest').hidden = false
+  $('ask-q').placeholder = PLACEHOLDER
+  $('ask-q').focus()
+}
+
+new IntersectionObserver(([e]) => $('dock').classList.toggle('stuck', !e.isIntersecting)).observe($('dock-top'))
 
 function suggestions() {
   const other = many() ? Object.values(devices)[1] : null
@@ -321,14 +456,6 @@ function suggestions() {
 }
 
 $('ask-form').addEventListener('submit', (e) => { e.preventDefault(); ask() })
-$('ask-new').addEventListener('click', () => {
-  history = []
-  $('answer').replaceChildren()
-  $('ask-new').hidden = true
-  $('suggest').hidden = false
-  $('ask-q').placeholder = PLACEHOLDER
-  $('ask-q').focus()
-})
 
 function since(range) {
   const d = new Date()
@@ -372,9 +499,12 @@ async function ask() {
   if (!question) return $('ask-q').focus()
   const turn = h('div', { class: 'turn' }, h('p', { class: 'q' }, question), h('p', { class: 'muted' }, 'Looking through your memory…'))
   $('answer').append(turn)
+  turns.push({ question, el: turn })
   $('ask-q').value = ''
   $('ask-go').disabled = true
   $('suggest').hidden = true
+  renderNav()
+  scrollToEl(turn) // asked from further down the page: show the answer as it comes
   const { data, error } = await db.functions.invoke('ask', {
     body: { question, since: since($('ask-range').value), utc_offset_minutes: -new Date().getTimezoneOffset(), history },
   })
@@ -383,12 +513,12 @@ async function ask() {
     try { reply = await error.context.json() } catch { reply = {} }
   }
   $('ask-go').disabled = false
-  $('ask-new').hidden = false
+  const cite = (e) => episodeRow(e, { from: turn })
   if (!reply?.answer) {
     const related = await rowsFor((reply?.episodes || []).slice(0, 5).map((e) => e.episode_id)).catch(() => [])
     turn.replaceChildren(h('p', { class: 'q' }, question),
       h('p', { class: 'error' }, reply?.error || 'Could not reach your memory. Check your connection and try again.'),
-      related.length ? h('div', { class: 'cites' }, h('span', { class: 'label' }, 'Related memories'), related.map(episodeRow)) : null)
+      related.length ? h('div', { class: 'cites' }, h('span', { class: 'label' }, 'Related memories'), related.map(cite)) : null)
     return
   }
   history = [...history, { question, answer: reply.answer }].slice(-3)
@@ -396,7 +526,7 @@ async function ask() {
   turn.replaceChildren(h('p', { class: 'q' }, question), h('div', { class: 'answer' }, ...prose(reply.answer), scope(reply.period),
     cited.length ? h('div', { class: 'cites' },
       h('span', { class: 'label' }, cited.length === 1 ? 'From this memory' : `From these ${cited.length} memories`),
-      cited.map(episodeRow)) : null))
+      cited.map(cite)) : null))
   $('ask-q').placeholder = 'Ask a follow-up…'
   $('ask-q').focus()
 }
@@ -410,12 +540,14 @@ const count = async (table, filter) => {
 }
 
 async function load() {
-  const [{ data: devs }, memories, waiting, projects, { data: last }] = await Promise.all([
+  const [{ data: devs }, memories, waiting, projects, { data: last }, { data: titles }] = await Promise.all([
     db.from('devices').select('device_id, name, label, first_seen, last_seen').order('last_seen', { ascending: false }),
     count('episodes'), count('raw_episodes', (q) => q.is('understood', null)), count('threads'),
     db.from('episodes').select('ended, device_id').order('ended', { ascending: false }).limit(1),
+    db.from('threads').select('id, title').limit(1000),
   ])
   devices = Object.fromEntries((devs || []).map((d) => [d.device_id, d.label || d.name || d.device_id.slice(0, 8)]))
+  threads = Object.fromEntries((titles || []).map((t) => [t.id, t.title]))
   const names = Object.values(devices)
   $('where').textContent = names.length
     ? `Everything Recall remembers from ${names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0]}. Ask in plain words; follow-ups keep the context.`
@@ -430,7 +562,10 @@ async function load() {
   $('waiting').textContent = `${waiting} more ${waiting === 1 ? 'is' : 'are'} being understood; ${waiting === 1 ? 'it appears' : 'they appear'} here within a minute.`
   suggestions()
   tabs.Devices = () => devicesPanel(devs || [])
-  if (linked()) current = 'Timeline'
+  if (linked()) {
+    current = 'Timeline'
+    reveal = { episode: linked() }
+  }
   renderTabs()
 }
 
@@ -439,19 +574,43 @@ function stat(label, value, note) {
     h('b', {}, typeof value === 'number' ? value.toLocaleString() : value), note ? h('span', { class: 'muted small' }, note) : null)
 }
 
-const tabs = { Timeline: timeline, Projects: projectsPanel, 'Daily digests': digestsPanel, Devices: null, 'Raw text': rawPanel }
+const tabs = { Timeline: timeline, Projects: projectsPanel, 'Daily digests': digestsPanel, Devices: null, Agents: agentsPanel, 'Raw text': rawPanel }
 let current = 'Timeline'
 try { current = localStorage.getItem('recall-tab') || current } catch {}
+let reveal = null // { episode } or { thread }: what the panel opens and scrolls to once it has loaded
+
+function pick(name) {
+  current = name
+  try { localStorage.setItem('recall-tab', name) } catch {}
+  renderTabs()
+}
 
 function renderTabs() {
   if (!(current in tabs)) current = 'Timeline'
   $('tabs').replaceChildren(...Object.keys(tabs).map((name) => h('button', {
-    class: 'tab', role: 'tab', type: 'button', 'aria-selected': String(name === current),
-    onclick: () => { current = name; try { localStorage.setItem('recall-tab', name) } catch {} renderTabs() },
+    class: 'tab', role: 'tab', type: 'button', 'aria-selected': String(name === current), onclick: () => pick(name),
   }, name)))
   $('panel').replaceChildren(h('p', { class: 'muted' }, 'Loading…'))
-  tabs[current]().then((nodes) => $('panel').replaceChildren(...[nodes].flat().filter(Boolean)))
-    .catch((e) => $('panel').replaceChildren(h('p', { class: 'error' }, `Could not load this: ${e.message}`)))
+  tabs[current]().then((nodes) => {
+    $('panel').replaceChildren(...[nodes].flat().filter(Boolean))
+    const target = reveal && $('panel').querySelector(reveal.episode
+      ? `[data-episode="${CSS.escape(reveal.episode)}"]` : `[data-thread="${CSS.escape(reveal.thread)}"]`)
+    reveal = null
+    if (!target) return
+    target.open()
+    target.classList.add('flash')
+    scrollToEl(target)
+  }).catch((e) => $('panel').replaceChildren(h('p', { class: 'error' }, `Could not load this: ${e.message}`)))
+}
+
+// From a memory (in an answer, the timeline or a project) to its place in the timeline or its project.
+// A jump from an answer puts "Back to answer" in the dock.
+function jump(tab, target, from) {
+  returnTo = from || null
+  reveal = target
+  if (tab === 'Timeline') view = { ...EVERYTHING } // no filter hides it
+  renderNav()
+  pick(tab)
 }
 
 function check({ data, error }) {
@@ -460,39 +619,84 @@ function check({ data, error }) {
 }
 
 const EPISODE_FIELDS = 'episode_id, device_id, started, ended, apps, worked_on, context, actions, important, people, evidence, importance, thread_id'
-const linked = () => decodeURIComponent(location.hash.slice(1)) // Recall's search window opens an episode as /#<episode_id>
-let onDevice = '' // the timeline's device filter
+// Recall's search window opens an episode as /#<episode_id>; a sign-up confirmation's #access_token=… isn't one.
+const linked = () => { const id = decodeURIComponent(location.hash.slice(1)); return id.includes('=') ? '' : id }
+const KEY = 7 // importance from 7 of 10 up: decisions, deadlines, things to follow up on
+const EVERYTHING = { text: '', app: '', key: false, device: '', range: 'any' }
+let view = { ...EVERYTHING } // the timeline's filters: device and period are asked of the cloud, the rest filter what came back
+let threads = {} // project titles by id
 
-async function timeline() {
-  let q = db.from('episodes').select(EPISODE_FIELDS).order('started', { ascending: false }).limit(150)
-  if (onDevice) q = q.eq('device_id', onDevice)
-  const rows = check(await q)
-  if (linked() && !rows.some((e) => e.episode_id === linked())) {
-    const older = check(await db.from('episodes').select(EPISODE_FIELDS).eq('episode_id', linked()))
-    rows.push(...older)
-  }
-  const filter = many() ? h('div', { class: 'toolbar' }, h('label', { class: 'label', for: 'on-device' }, 'Show'),
-    h('select', { id: 'on-device', onchange: (e) => { onDevice = e.target.value; renderTabs() } },
-      h('option', { value: '' }, 'All devices'),
-      Object.entries(devices).map(([id, name]) => h('option', { value: id, selected: id === onDevice }, name)))) : null
-  if (!rows.length) return [filter, h('p', { class: 'empty' },
-    'Nothing understood yet. Tick an app under Tracked apps in Recall\'s tray, then press Ctrl+Alt+Esc to send what you\'re doing.')]
-  const days = new Map()
-  for (const e of rows) {
-    const key = new Date(e.started).toDateString()
-    if (!days.has(key)) days.set(key, [])
-    days.get(key).push(e)
-  }
-  return [filter, ...[...days.values()].map((list) => h('div', { class: 'day' },
-    h('span', { class: 'label' }, dayName(list[0].started)), list.map(episodeRow)))]
+function period(range) {
+  const midnight = new Date()
+  midnight.setHours(0, 0, 0, 0)
+  const days = (n) => new Date(midnight - n * 864e5).toISOString()
+  return { today: [days(0)], yesterday: [days(1), days(0)], week: [days(6)], month: [days(29)] }[range] || []
 }
 
-function episodeRow(e) {
+// Everything a filter word can match: what, summary, actions, key points, people, apps, project, device.
+const haystack = (e) => [e.worked_on, e.context, ...(e.actions || []), ...(e.important || []), ...(e.people || []),
+  ...(e.apps || []).map(appName), threads[e.thread_id], devices[e.device_id]].join(' ').toLowerCase()
+
+async function timeline() {
+  let q = db.from('episodes').select(EPISODE_FIELDS).order('started', { ascending: false }).limit(200)
+  if (view.device) q = q.eq('device_id', view.device)
+  const [since, until] = period(view.range)
+  if (since) q = q.gte('started', since)
+  if (until) q = q.lt('started', until)
+  const rows = check(await q)
+  if (reveal?.episode && !rows.some((e) => e.episode_id === reveal.episode)) {
+    rows.push(...check(await db.from('episodes').select(EPISODE_FIELDS).eq('episode_id', reveal.episode)))
+  }
+  const narrowed = view.device || view.range !== 'any'
+  if (!rows.length && !narrowed) return h('p', { class: 'empty' },
+    'Nothing understood yet. Tick an app under Tracked apps in Recall\'s tray, then press Ctrl+Alt+Esc to send what you\'re doing.')
+
+  const list = h('div', {})
+  const shownCount = h('span', { class: 'muted small', role: 'status' })
+  const draw = () => {
+    const words = view.text.toLowerCase().split(/\s+/).filter(Boolean)
+    const shown = rows.filter((e) => (!view.key || e.importance >= KEY)
+      && (!view.app || (e.apps || []).some((a) => a.toLowerCase() === view.app))
+      && words.every((w) => haystack(e).includes(w)))
+    shownCount.textContent = shown.length === rows.length
+      ? `${rows.length} ${rows.length === 1 ? 'memory' : 'memories'}` : `${shown.length} of ${rows.length}`
+    const days = new Map()
+    for (const e of shown) {
+      const key = new Date(e.started).toDateString()
+      if (!days.has(key)) days.set(key, [])
+      days.get(key).push(e)
+    }
+    list.replaceChildren(...(shown.length
+      ? [...days.values()].map((day) => h('div', { class: 'day' },
+        h('span', { class: 'label' }, dayName(day[0].started)), day.map((e) => episodeRow(e, { inTimeline: true }))))
+      : [h('p', { class: 'empty' }, narrowed || rows.length
+        ? 'No memories match. Clear a filter to see more.' : 'Nothing understood yet.')]))
+  }
+  const choose = (label, value, options, onchange) => h('select', { 'aria-label': label, onchange: (e) => onchange(e.target.value) },
+    options.map(([v, text]) => h('option', { value: v, selected: v === value }, text)))
+  const appList = [...new Set(rows.flatMap((e) => (e.apps || []).map((a) => a.toLowerCase())))].sort()
+  const toolbar = h('div', { class: 'toolbar' },
+    h('input', { class: 'find', type: 'search', value: view.text, 'aria-label': 'Filter memories',
+      placeholder: 'Filter: words, people, projects, apps', oninput: (e) => { view.text = e.target.value; draw() } }),
+    choose('Period', view.range, [['any', 'Any time'], ['today', 'Today'], ['yesterday', 'Yesterday'], ['week', 'Last 7 days'], ['month', 'Last 30 days']],
+      (v) => { view.range = v; renderTabs() }),
+    many() ? choose('Device', view.device, [['', 'All devices'], ...Object.entries(devices)], (v) => { view.device = v; renderTabs() }) : null,
+    appList.length > 1 ? choose('App', view.app, [['', 'All apps'], ...appList.map((a) => [a, appName(a)])], (v) => { view.app = v; draw() }) : null,
+    h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: view.key, onchange: (e) => { view.key = e.target.checked; draw() } }), 'Key only'),
+    shownCount)
+  draw()
+  return [toolbar, list]
+}
+
+// One memory: its summary is visible; the full detail opens in place.
+// from: the answer it was cited in; inTimeline: it's already in the timeline.
+function episodeRow(e, { from, inTimeline } = {}) {
   const detail = h('div', { class: 'detail', hidden: true })
   let loaded = false
   const toggle = async () => {
     detail.hidden = !detail.hidden
     button.setAttribute('aria-expanded', String(!detail.hidden))
+    row.classList.toggle('open', !detail.hidden)
     if (loaded || detail.hidden) return
     loaded = true
     const spans = check(await db.from('timeline_spans').select('app, title, url, started, ended')
@@ -500,21 +704,26 @@ function episodeRow(e) {
     detail.append(section('Window spans', h('div', { class: 'spans' }, h('table', {}, h('tbody', {},
       spans.map((s) => h('tr', {}, h('td', {}, `${time(s.started)}–${time(s.ended)}`), h('td', {}, appName(s.app)), h('td', {}, s.title))))))))
   }
-  const button = h('button', { type: 'button', 'aria-expanded': 'false', onclick: toggle },
+  const button = h('button', { class: 'row-main', type: 'button', 'aria-expanded': 'false', onclick: toggle },
     h('span', { class: 'when' }, `${time(e.started)}–${time(e.ended)}`),
-    h('span', { class: 'what' }, e.worked_on),
-    h('span', { class: 'meta' }, device(e.device_id), apps(e.apps)))
+    h('span', { class: 'body' },
+      h('span', { class: 'what' }, e.worked_on,
+        e.importance >= KEY ? h('span', { class: 'pill key', title: `Importance ${e.importance}/10` }, 'Key') : null),
+      e.context ? h('span', { class: 'summary' }, e.context) : null))
+  const project = e.thread_id ? h('button', { class: 'project', type: 'button', title: `Open the project: ${threads[e.thread_id] || ''}`,
+    onclick: () => jump('Projects', { thread: e.thread_id }, from) }, threads[e.thread_id] || 'Project') : null
   detail.append(
-    e.context ? h('p', {}, e.context) : null,
     list('Actions', e.actions), list('Important', e.important),
     e.people?.length ? section('People', h('p', {}, e.people.join(', '))) : null,
     e.evidence?.length ? section('Evidence from your screen', e.evidence.map((q) => h('blockquote', {}, q))) : null,
-    h('p', { class: 'muted small' }, `${dayName(e.started)} on ${devices[e.device_id] || 'a device'} · importance ${e.importance}/10`))
-  const row = h('div', { class: 'row' }, button, detail)
-  if (e.episode_id === linked()) {
-    toggle()
-    setTimeout(() => row.scrollIntoView({ block: 'start' }), 0) // once the panel shows it
-  }
+    h('p', { class: 'muted small' }, `${dayName(e.started)} on ${devices[e.device_id] || 'a device'} · importance ${e.importance}/10`),
+    inTimeline ? null : h('div', { class: 'jumps' },
+      h('button', { class: 'link-btn', type: 'button', onclick: () => jump('Timeline', { episode: e.episode_id }, from) }, 'Show in timeline'),
+      project ? h('button', { class: 'link-btn', type: 'button', onclick: () => jump('Projects', { thread: e.thread_id }, from) },
+        `Open project: ${threads[e.thread_id] || 'this project'}`) : null))
+  const row = h('div', { class: 'row', 'data-episode': e.episode_id },
+    h('div', { class: 'row-head' }, button, h('span', { class: 'meta' }, project, device(e.device_id), apps(e.apps))), detail)
+  row.open = () => detail.hidden && toggle()
   return row
 }
 
@@ -523,8 +732,11 @@ const list = (title, items) => items?.length ? section(title, h('ul', {}, items.
 
 // Projects (threads): the same work, linked across days and devices as it's understood.
 async function projectsPanel() {
-  const rows = check(await db.from('threads').select('id, title, summary, started, ended, episodes')
-    .order('ended', { ascending: false }).limit(50))
+  const fields = 'id, title, summary, started, ended, episodes'
+  const rows = check(await db.from('threads').select(fields).order('ended', { ascending: false }).limit(50))
+  if (reveal?.thread && !rows.some((t) => t.id === reveal.thread)) {
+    rows.push(...check(await db.from('threads').select(fields).eq('id', reveal.thread)))
+  }
   if (!rows.length) return h('p', { class: 'empty' }, 'No projects yet. Memories about the same work, on any device, are linked into a project as they\'re understood.')
   return h('div', { class: 'card-list' }, rows.map((t) => {
     const episodes = h('div', { hidden: true })
@@ -536,7 +748,7 @@ async function projectsPanel() {
       if (loaded || episodes.hidden) return
       loaded = true
       episodes.append(...check(await db.from('episodes').select(EPISODE_FIELDS).eq('thread_id', t.id)
-        .order('started', { ascending: false })).map(episodeRow))
+        .order('started', { ascending: false })).map((e) => episodeRow(e)))
     }
     const head = h('button', { class: 'card-head', type: 'button', 'aria-expanded': 'false', onclick: toggle },
       h('h3', {}, t.title),
@@ -544,7 +756,9 @@ async function projectsPanel() {
       h('span', { class: 'muted small' },
         `${t.episodes} ${t.episodes === 1 ? 'memory' : 'memories'} · ${stamp(t.started)} to ${stamp(t.ended)}`),
       h('span', { class: 'more' }, 'Show memories'))
-    return h('div', { class: 'card' }, head, episodes)
+    const card = h('div', { class: 'card', 'data-thread': t.id }, head, episodes)
+    card.open = () => episodes.hidden && toggle()
+    return card
   }))
 }
 
@@ -583,6 +797,57 @@ async function devicesPanel(devs) {
         (d.label ? ` · computer name ${d.name}` : '')),
       h('form', { class: 'rename', onsubmit: rename }, input, h('button', { class: 'secondary', type: 'submit' }, 'Rename'), status))
   }))
+}
+
+// Agents: connect any MCP client to this memory, see which agents you allowed, and revoke them.
+const MCP_URL = `${SUPABASE_URL}/functions/v1/mcp`
+
+function copyLine(text) {
+  const button = h('button', { class: 'secondary', type: 'button', onclick: async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+      button.textContent = 'Copied'
+    } catch {
+      button.textContent = 'Select and copy'
+    }
+    setTimeout(() => (button.textContent = 'Copy'), 2000)
+  } }, 'Copy')
+  return h('div', { class: 'copy' }, h('code', {}, text), button)
+}
+
+async function agentsPanel() {
+  const { data: grants, error } = await db.auth.oauth.listGrants()
+  if (error) throw new Error(error.message)
+  const connect = h('div', { class: 'card' },
+    h('h3', {}, 'Connect an AI agent'),
+    h('p', {}, 'Add this URL to any MCP client (Claude Code, Claude Desktop, ChatGPT, Cursor, VS Code…) as a remote server. ' +
+      'It opens this site to ask you: choose Allow, and the agent can read your memory, never change it.'),
+    copyLine(MCP_URL),
+    h('span', { class: 'label' }, 'Claude Code'), copyLine(`claude mcp add --transport http recall ${MCP_URL}`),
+    h('span', { class: 'label' }, 'Clients that only run local commands'), copyLine(`npx -y mcp-remote ${MCP_URL}`))
+  const allowed = h('div', { class: 'card' }, h('h3', {}, 'Agents with access'),
+    grants?.length ? grants.map((g) => {
+      const name = g.client?.name || 'An agent'
+      const status = h('span', { class: 'muted small', role: 'status' })
+      const revoke = h('button', { class: 'secondary', type: 'button', onclick: async () => {
+        if (!confirm(`Revoke ${name}'s access to your memory? It can't renew its access, and loses it within an hour, ` +
+          'when its current token expires. It can connect again only if you allow it again.')) return
+        revoke.disabled = true
+        status.textContent = 'Revoking…'
+        const { error } = await db.auth.oauth.revokeGrant({ clientId: g.client.id })
+        if (error) {
+          revoke.disabled = false
+          status.textContent = `Couldn't revoke: ${error.message}`
+          return
+        }
+        renderTabs()
+      } }, 'Revoke')
+      return h('div', { class: 'grant' },
+        h('div', {}, h('b', {}, name), g.granted_at ? h('div', { class: 'muted small' }, `Allowed ${stamp(g.granted_at)}`) : null),
+        revoke, status)
+    }) : h('p', { class: 'muted' }, 'No agents yet. Connect one with the URL above.'),
+    grants?.length ? h('p', { class: 'muted small' }, 'A revoked agent can\'t renew its access; it loses it within an hour.') : null)
+  return h('div', { class: 'card-list' }, connect, allowed)
 }
 
 async function rawPanel() {

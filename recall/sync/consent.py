@@ -1,10 +1,10 @@
 """Recall's own pages, served by Recall itself on http://localhost:8766.
 
 / is your cloud account: sign in, create an account or sign out, without a terminal. The tray's
-cloud item opens it, and the sign-up confirmation email lands on it.
-/oauth/consent is the consent screen for AI agents. When an agent (Claude Code, Cursor...) connects
-to Recall's MCP server, Supabase Auth sends your browser here. Recall is already signed in, so you
-only choose Allow or Deny; the agent then gets read-only access to your memory.
+cloud item opens it.
+/oauth/consent approves an AI agent with this device's session. Supabase Auth now sends agents to the
+dashboard's own consent page (web/, /oauth/consent), which works from any device; this one approves
+through the same Auth API.
 A per-run nonce stops other web pages from approving for you, or signing Recall in to their account.
 """
 import hmac
@@ -109,7 +109,7 @@ class ConsentServer:
             body = (f"<p>Signed in as <b>{e(self.cloud.email)}</b>. What you do in tracked apps goes to your private "
                     "cloud memory, so you can search it from any device.</p>"
                     f"<p><a href='{DASHBOARD}'>Open the dashboard</a> to ask your memory questions.</p>"
-                    "<p>Connect any AI agent that speaks MCP: add this server URL, then choose Allow when this page asks."
+                    "<p>Connect any AI agent that speaks MCP: add this server URL, then choose Allow when the dashboard asks."
                     f"<code>{e(mcp)}</code></p><p class=muted>Claude Code:"
                     f"<code>claude mcp add --transport http recall {e(mcp)}</code>"
                     f"A client that only runs local commands:<code>npx -y mcp-remote {e(mcp)}</code></p>"

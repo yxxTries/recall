@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from recall.sync.cloud import ENV_FILE, CloudSession, request, settings
+from recall.sync.cloud import DASHBOARD, ENV_FILE, CloudSession, request, settings
 from recall.sync.uploader import SyncWorker
 from recall.ui.search import SearchApi
 
@@ -213,9 +213,9 @@ def test_an_agent_connects_through_oauth_and_the_consent_page(users):
         "code_challenge": challenge, "code_challenge_method": "S256",
         "resource": f"{URL}/functions/v1/mcp"})
     consent_url = location(urllib.request.Request(authorize))
-    assert consent_url.startswith("http://localhost:8766/oauth/consent?authorization_id=")
+    assert consent_url.startswith(f"{DASHBOARD}/oauth/consent?authorization_id=")  # the dashboard asks
 
-    server = ConsentServer(device_1, port=0)  # Recall's consent page, signed in as user A
+    server = ConsentServer(device_1, port=0)  # approves through the same Auth API as the dashboard, as user A
     local = f"http://127.0.0.1:{server.httpd.server_address[1]}/oauth/consent"
     server.start()
     try:

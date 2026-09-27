@@ -6,7 +6,8 @@ You pick the apps. Recall reads their text on your PC (no screenshots, no keystr
 
 ## What you can do
 
-- **Ask your memory** at https://recall-memory-yxxtries.vercel.app. Answers are in plain words, cover all your devices and show the memories they came from. Follow-up questions work.
+- **Ask your memory** at https://recall-memory-yxxtries.vercel.app. Answers are in plain words, cover all your devices and show the memories they came from. Follow-up questions work, the ask box stays at the top while you browse, and each cited memory opens in the timeline or its project.
+- **See what it remembers.** Each memory shows its summary, its project and a **Key** badge when it matters; filter the timeline by words, period, device or app.
 - **Search from anywhere** on your PC with `Ctrl+Shift+Space`.
 - **Give your AI agents a memory.** Claude Code, ChatGPT, Cursor or any other MCP client can read it, read-only, once you allow it.
 - **Keep it private.** Only the apps you tick are read, secrets are removed on your PC, and no one else can see your memory.
@@ -57,23 +58,24 @@ code --install-extension recall-companion-0.1.0.vsix
 | Send what you're doing to the cloud now | `Ctrl+Alt+Esc`. Otherwise it goes after 5 idle minutes or a change of task. |
 | Ask questions and see everything stored | Tray: **Open dashboard** |
 | Name your devices | Dashboard: **Devices** ("Laptop", "Work PC"). Ask understands the names. |
+| Connect or revoke AI agents | Dashboard: **Agents** |
 | Stop capturing | Tray: **Pause**. It stays paused after a restart. |
-| Sign out, or find the URL for agents | Tray: **Cloud: you@…** |
+| Sign out on this PC | Tray: **Cloud: you@…** |
 
 Without an account, Recall still remembers and searches on this PC. If you're signed out, what it captured waits until you sign in again. Logs are in `%LOCALAPPDATA%\Recall\logs\recall.log`.
 
 ## Connect an AI agent (MCP)
 
-Your memory is a remote MCP server that any MCP client can use: Claude Code, Claude Desktop, ChatGPT, Cursor, VS Code, Windsurf, Gemini CLI and others. The URL is on Recall's account page (tray: **Cloud: you@…**):
+Your memory is a remote MCP server that any MCP client can use: Claude Code, Claude Desktop, ChatGPT, Cursor, VS Code, Windsurf, Gemini CLI and others. The URL is on the dashboard's **Agents** tab:
 
 ```
 https://<project>.supabase.co/functions/v1/mcp
 ```
 
 1. Add the URL to your client as a remote (HTTP) MCP server. In Claude Code: `claude mcp add --transport http recall <URL>`, then `/mcp`.
-2. Your browser opens Recall's consent page. Choose **Allow**.
+2. Your browser opens the dashboard's consent page (sign in if asked). Choose **Allow**. This works from any device, with Recall running or not.
 
-The agent can read your memory and nothing else. A client that only runs local commands uses this as its command: `npx -y mcp-remote <URL>`.
+The agent can read your memory and nothing else. **Agents** lists every agent you allowed; revoking one stops it renewing its access, which then ends within an hour. A client that only runs local commands uses this as its command: `npx -y mcp-remote <URL>`.
 
 | Tool | What it answers |
 | --- | --- |

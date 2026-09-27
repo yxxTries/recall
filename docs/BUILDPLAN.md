@@ -34,7 +34,7 @@ A Windows tray app that remembers what you do in the apps you choose, so you and
 - One low-priority Python process on the PC, with no AI models: capture, rules and a local keyword index only.
 - Cloud: Supabase (Postgres with vector search, queues, scheduled jobs, Edge Functions, and Auth as the OAuth server for agents).
 - Understanding: Groq's free tier (`openai/gpt-oss-120b`), Cerebras as a fallback. Embeddings: Supabase's built-in gte-small.
-- Agents: read-only MCP tools. Each agent registers itself and you approve it on Recall's consent page. Clients without OAuth use the `mcp-remote` bridge; there are no API keys.
+- Agents: read-only MCP tools. Each agent registers itself and you approve it on the dashboard's consent page, from any device; the dashboard's Agents tab lists and revokes them. Clients without OAuth use the `mcp-remote` bridge; there are no API keys.
 - Privacy: allowlist only, no keystrokes or screenshots, secrets removed before upload, raw text deleted 24 hours after it's understood.
 
 ## Results (Sep 27)
