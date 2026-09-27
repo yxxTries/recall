@@ -57,7 +57,7 @@ Capture, activity records, episode segmentation, filtering and redaction run on 
 DEVICE (one low-priority process, no models)
 [Foreground watcher] -> [Text capture: UIA, VS Code extension, OCR fallback] --\
                      -> [Audio capture: loopback, silence gate] --------------+-> [Activity records] -> [Local keyword search, offline]
-                                                                              \-> [Segment episodes] -> [Filter + dedupe] -> [Redact] -> [zstd outbox]
+                                                                              \-> [Segment episodes] -> [Filter + dedupe] -> [Redact] -> [gzip outbox]
 CLOUD (Supabase, private per user)                                                                                            |
 [Ingest] -> [Raw events, kept 24 h] -> [Groq: episodes; gte-small: embeddings; speech-to-text] -> [Timeline, episodes, threads, digests]
                                                                                           -> [Search from any device]
@@ -235,7 +235,7 @@ Left open on 2026-09-26 by choice; the build moves on to Phase 7. Already checke
 - [ ] Spike limit: if Python bindings for per-process loopback aren't working after 1 h, ship a tiny C# helper exe (based on Microsoft's ApplicationLoopback sample) that streams PCM over stdout
 - [ ] Fallback: system WASAPI loopback (PyAudioWPatch), on only while a tracked app's audio session is active
 - [ ] Loudness gate (no model) splits speech segments; silence is never uploaded
-- [ ] Segments go to cloud speech-to-text (needs the Phase 7 cloud) from a bounded queue, retried with backoff; audio discarded after
+- [ ] Segments go to cloud speech-to-text (needs the Phase 7 cloud) from a bounded queue, retried with backoff; audio discarded after (Groq's `whisper-large-v3-turbo` is available on the same key)
 - [ ] Transcripts enter the activity pipeline with `source=audio` and segment timestamps
 - [ ] Opt-in microphone capture while the tracked app holds the mic
 
@@ -256,28 +256,28 @@ Understanding happens over time, in the cloud. The device splits your work into 
 
 **Device side**
 
-- [ ] Episode segmentation: every 30 s, a hashed term vector (512 slots, weighted by rarity) plus app, window and activity rate; drift from the episode so far feeds CUSUM or Bayesian online change-point detection, with a short hold so an alt-tab doesn't split an episode
-- [ ] Relevance: word rarity over the last 7 days from a count-min sketch (fixed ~128 KB), so distinctive words beat "app" and "text"
-- [ ] Near-duplicates: a 64-bit SimHash per line, so re-rendered chat and log lines aren't uploaded again
-- [ ] Redaction: high-entropy tokens, known key formats (`sk-`, `ghp_`, `AKIA`, `xoxb-`), emails and phone numbers become `⟨SECRET:n⟩` placeholders; a local vault maps them back on this machine only
-- [ ] Uploader: local outbox, one zstd-compressed POST every 60 s (measured about 4× on real captures, 0.5 ms CPU per 123 KB), idempotent batch IDs, retry with backoff, bounded while offline
-- [ ] Device registration on first run; device ID and auth token stored locally
+- [x] Episode segmentation: every 30 s, a hashed term vector (512 slots, weighted by rarity) plus app and subject; drift from the episode so far feeds CUSUM (cut where the drift began), so an alt-tab doesn't split an episode; episodes also end after 5 idle minutes and at 20 minutes (`recall/sync/segment.py`)
+- [x] Relevance: word rarity from a count-min sketch (fixed 128 KB, counts halve daily), so distinctive words beat "app" and "text"; an episode keeps its most distinctive new lines, up to ~3k tokens
+- [x] Near-duplicates: a 64-bit SimHash per line (8 bands, within 7 bits), so re-rendered chat and log lines aren't uploaded again
+- [x] Redaction: high-entropy tokens, known key formats (`sk-`, `ghp_`, `AKIA`, `xoxb-`, `gsk_`, `sb_secret_`, JWTs, private keys), `password = …` values, emails and phone numbers become `⟨SECRET:n⟩`, `⟨EMAIL:n⟩` or `⟨PHONE:n⟩`; a local vault maps them back on this machine only
+- [x] Uploader: local outbox, one gzip POST every 60 s (gzip measured 3.9× vs zstd 3.8× on real captures, and Edge Functions decompress it natively), idempotent episode IDs, retry with backoff up to 10 min, bounded at 2,000 batches
+- [x] Sign-in once from a terminal (`python -m recall.sync.cloud login`); the session and device ID stay local; the device registers itself on its first upload
 
 **Cloud side (Supabase)**
 
-- [ ] Tables: `raw_events` (deleted 24 h after summarizing), `timeline_spans`, `episodes` (with embedding), `threads`, `digests`, `devices`; row-level security per user
-- [ ] Ingest Edge Function → `raw_events` → pgmq queue; pg_cron hands work to the understanding function, and failed work retries after its visibility timeout
-- [ ] Timeline spans by rules: exact app and window spans with durations
-- [ ] One Groq call per closed episode through an OpenAI-compatible client (provider = base URL + key, so Cerebras is a drop-in fallback), with JSON-schema output validated and retried once on failure: `worked_on`, `context`, `actions`, `important`, `topics`, `people`, `importance`, `continues_previous`, `evidence`; the input is the previous episode, the thread state, the timeline and the condensed text (about 5k tokens, to fit Groq's free limit of 8K tokens per minute)
-- [ ] Embeddings with Supabase's built-in gte-small (384 dimensions); threads link episodes of the same project across days (similarity, confirmed by the model); daily digests scheduled off-peak
-- [ ] One search function: keywords + embeddings + recency decay + importance, with time filters (the golden paraphrase test moves here); the search window gets an "All devices" toggle, and local keyword search stays for offline use
+- [ ] Tables: `raw_episodes` (deleted 24 h after understanding), `timeline_spans`, `episodes` (with embedding), `threads`, `digests`, `devices`; row-level security per user (written, not deployed)
+- [ ] Ingest Edge Function → `raw_episodes` → pgmq queue; pg_cron calls the understand function every minute, and failed work retries after its visibility timeout (written, not deployed)
+- [ ] Timeline spans by rules: exact app and window spans with durations, built on the device (written, not deployed)
+- [ ] One Groq call per closed episode through an OpenAI-compatible client (provider = base URL + key, so Cerebras is a drop-in fallback), with JSON-schema output validated and retried once on failure: `worked_on`, `context`, `actions`, `important`, `topics`, `people`, `importance`, `continues_previous`, `thread`, `thread_title`, `evidence`; the input is the previous episode, candidate threads, the timeline and the condensed text. Measured live: ~1.3k tokens and 1.5 s per episode with `reasoning_effort: low`; after 4 failed attempts an episode keeps a rules-only memory (written, not deployed)
+- [ ] Embeddings with Supabase's built-in gte-small (384 dimensions); threads link episodes of the same project across days (similarity, confirmed by the model) (written, not deployed); daily digests scheduled off-peak (not started)
+- [ ] One search function: keywords + embeddings + recency decay + importance, with time filters (written, not deployed; the golden paraphrase test moves here); the search window gets an "All devices" toggle (not started), and local keyword search stays for offline use
 
 **MCP server for AI agents**
 
-- [ ] Edge Function with `createMcpHandler` (Streamable HTTP); OAuth 2.1 through Supabase Auth (`withOAuthProtectedResource`, `withSupabase({ auth: 'user' })`), so every call runs as the user under row-level security
-- [ ] Read-only tools taking exact time ranges: `search_memory`, `get_timeline`, `get_episode`, `list_threads` / `get_thread`, `daily_digest`
-- [ ] Pre-registered clients only (dynamic client registration off)
-- [ ] Prompt-injection guard: captured text is returned as quoted data, and instruction-like lines are flagged
+- [ ] Edge Function with `createMcpHandler` (Streamable HTTP); OAuth 2.1 through Supabase Auth (`withOAuthProtectedResource`, `withSupabase({ auth: 'user' })`), so every call runs as the user under row-level security (written, not deployed)
+- [ ] Read-only tools taking exact time ranges: `search_memory`, `get_timeline`, `get_episode`, `list_threads` / `get_thread`, `daily_digest` (written, not deployed)
+- [ ] Changed 2026-09-27: dynamic client registration on, because MCP clients register themselves (Supabase's MCP guide requires it); each new client still needs your approval on Recall's consent page (`localhost:8766/oauth/consent`, signed in already, nonce-protected)
+- [x] Prompt-injection guard: captured text is returned as quoted data, and instruction-like lines are flagged (the model also ignored an injected line in a live test)
 - [ ] Stretch: the same tools as a local MCP server over the device database, for offline agents
 - [ ] Stretch: a CPU governor that keeps Recall under its budget by adjusting capture delay and read limits
 
