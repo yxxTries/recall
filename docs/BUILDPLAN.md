@@ -13,14 +13,14 @@ A Windows tray app that remembers what you were doing in the apps you choose. Th
 | Objective | Status |
 | --- | --- |
 | Capture only tracked apps; untracked apps cost nothing | Done |
-| Text from tracked apps (UIA, VS Code extension) searchable on the device within 5 s | Done (1.5 s) |
+| Text from tracked apps (UIA, VS Code extension) searchable on the device within 5 s | Done (1.4–1.9 s live in Chrome, VS Code and a native editor; streaming pages under 4 s) |
 | Secrets and PII redacted on the device before upload | Done |
 | Episodes understood in the cloud within 2 min | Done (6–58 s; under 5 s with the send hotkey) |
 | Search by meaning across devices | Done (golden queries 20/20 in top 3) |
 | AI agents read your memory over MCP; other users see nothing | Done (Claude Code on your account, Sep 27) |
 | Speech from tracked apps searchable within 30 s | Not started (Phase 5, after the MVP) |
-| Near-zero idle CPU; capture never lags the tracked app | Measured 0.03% CPU; 30-min perf run still to do |
-| Demo runs end to end, twice in a row | Not started (Phase 8) |
+| Near-zero idle CPU; capture never lags the tracked app | Live multi-app run: at most 0.7% of one core (0.04% of the PC), 56 MB, no extra load on Chrome; 30-min run while working still to do |
+| Demo runs end to end, twice in a row | Automated run (Sep 27): a minute of work, send, understood 4.3 s later, found by search and MCP 2 s after that; live rehearsal still to do |
 
 ## How it works
 
@@ -58,7 +58,7 @@ CLOUD (Supabase, private per user)
 **2. Finish Gate M4 (MVP checks)**
 
 - [ ] 5 minutes of real use, then find it
-- [ ] 30-minute perf run within budget: Sep 27 run averaged 0.01% CPU (max 0.59%), RAM max 138 MB, but capture was paused after 4 minutes, so the active-capture budget (under 3%) still needs a run while working
+- [ ] 30-minute perf run within budget: Sep 27 run averaged 0.01% CPU (max 0.59%), RAM max 138 MB, but capture was paused after 4 minutes, so the active-capture budget (under 3%) still needs a run while working (scripted multi-app capture stayed at 0.7% of one core: see Capture speed and overhead)
 - [ ] 60-second backup demo video
 
 **Memory accuracy** (`python scripts/eval_memory.py`: 12 realistic capture streams with known answers, through the real pipeline; `--local` checks the device side for free)
@@ -71,6 +71,15 @@ CLOUD (Supabase, private per user)
 - [x] Attribution: "You" lines are the user's; any other named author or speaker is someone else, even on a page about their work (a PR review had credited the author's reply to the user)
 - [x] 3 more scenarios (docs and code back and forth, a GitHub PR review, a Slack follow-up): 3/3 on every check
 - Result (Sep 27): segmentation 12/12, facts 24/24, forbidden claims 7/7, importance 14/14, secrets 2/2, thread linking 1/1, Ask answers 8/8, citations 7/7; evidence 36/38 and people 7/9 before the last two fixes, 12/12 evidence on the re-run
+
+**Capture speed and overhead** (live runs with real Chrome, VS Code and a native editor in a throwaway Recall; each timed line carries its own timestamp)
+
+- [x] What you did just before switching away (a message sent, then alt-tab) is read at once; it waited for your next visit (54–154 s), or was lost if the window closed. Windows only alt-tabbed through still aren't read
+- [x] A window that never goes quiet (a streaming answer, a busy chat) is read every 4 s, not 10: median 1.85 s, max 3.8 s
+- [x] VS Code chat panels are read from their end. Past 200K characters (a few hours of Claude Code) the newest messages were never captured, and each read blocked VS Code for 107–270 ms; now the newest ~10K characters in calls of a few ms (~265 ms in all)
+- [x] A local file in a browser (`C:/Users/me/lease.pdf`) is its own subject; every local page and PDF had merged into one activity called "c"
+- [ ] Ask right after a send can answer "busy": understanding and the answer share Groq's 8K tokens a minute, and a 429 isn't retried
+- Result (Sep 27): line on screen to captured 1.53 s (Chrome chat), 1.41 s (native editor), 1.61 s (VS Code); Recall at most 0.7% of one core and 56 MB; unit and integration suites pass. Demo path on a throwaway account: send → uploaded 1.5 s → understood 2.8 s later → paraphrase search and MCP `search_memory` hit within 2 s; about 65 s including a minute of work
 
 **3. Phase 8 · Demo (MVP on text capture)**
 
