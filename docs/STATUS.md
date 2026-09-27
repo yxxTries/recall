@@ -20,16 +20,16 @@ Recall is a Windows tray app that remembers what you did in the apps you pick. T
 
 | Area | What works |
 | --- | --- |
-| **Capture** | Only allowlisted apps, from Windows events (no polling); untracked apps cost nothing. Text through UI Automation, read 1.5 s after content settles (at most every 4 s). VS Code: editor lines via the Recall Companion extension; Claude Code / Copilot chat panels read from their newest end. Skips password fields, InPrivate/Incognito windows and secret-looking files. Pause survives a restart. |
+| **Capture** | Only allowlisted apps, from Windows events (no polling); untracked apps cost nothing. Text through UI Automation, read 1.5 s after content settles (at most every 4 s). VS Code: editor lines via the Recall Companion extension; Claude Code / Copilot chat panels read from their newest end. Browsers are read for the page only, never their own dialogs, tabs or toolbar. Skips password fields, InPrivate/Incognito windows and secret-looking files. Pause survives a restart. |
 | **Local memory** | SQLite + FTS5: every activity is keyword-searchable on the device within ~1.5 s, offline. Search window on `Ctrl+Shift+Space`. |
 | **Episodes** | CUSUM topic-drift segmentation (alt-tabs don't split; short lead-ins join the next task), SimHash dedupe, word rarity, a 12K-char budget that keeps prose over logs and JSON. |
 | **Redaction** | Known key formats, `password=` values, emails, phones and high-entropy tokens become placeholders on the device; the map back stays local. |
 | **Sync** | gzip outbox in SQLite, uploads every 60 s, survives offline and restarts, backs off to 10 min. `Ctrl+Alt+Esc` sends now (understood in under 5 s). |
 | **Cloud** (Supabase) | Row-level security on every table. Queue + cron: Groq `gpt-oss-120b` (Cerebras fallback) writes summary, actions, important points, people, importance and a thread; evidence is checked word for word against the captured text; a rules-only fallback when the LLM keeps failing. gte-small embeddings, hybrid keyword + meaning search, daily digests, raw text deleted 24 h after it's understood. |
-| **Ways in** | Search window "All devices"; dashboard on Vercel with **Ask** (answers cite episodes, understands "yesterday afternoon"); MCP server with 6 read-only tools for any client, OAuth with an Allow/Deny page on `localhost:8766`; sign in / sign up / sign out from the tray. |
-| **Quality** | 70 Python tests, 20 Deno tests, VS Code extension test; memory eval on 15 realistic scenarios: segmentation 12/12, facts 24/24, forbidden claims 7/7, Ask 8/8, citations 7/7 (latest cloud run); golden paraphrase search 20/20 in top 3. |
+| **Ways in** | Search window "All devices"; dashboard on Vercel with **Ask**: answers cite episodes, understand time words ("yesterday afternoon"), give a whole-period rundown with time per app for "today" or "this week", know your devices by name ("my laptop"), and keep context across follow-ups. MCP server with 6 read-only tools for any client, OAuth with an Allow/Deny page on `localhost:8766`; sign in / sign up / sign out from the tray. |
+| **Quality** | 71 Python tests, 24 Deno tests, VS Code extension test. Memory eval on 15 realistic scenarios: segmentation 12/12, facts 24/24, forbidden claims 7/7, Ask 8/8, citations 7/7 (latest cloud run). Ask eval over a two-device memory: 14/14. Golden paraphrase search 20/20 in the top 3. |
 | **Performance** | A line on screen is captured in 1.4–1.9 s (Chrome, VS Code, a native editor); a streaming window at most every 4 s. Live multi-app run: at most 0.7% of one core, 56 MB, no extra load on Chrome. A 30-min mostly-idle run averaged 0.01% CPU, 138 MB max. Budgets: 3% active, 0.5% idle, 600 MB. |
-| **Demo path** | Automated run on a throwaway account: a minute of work, send, uploaded 1.5 s later, understood 2.8 s after that, then found by paraphrase search and by MCP within 2 s. |
+| **Demo** | A 2-minute script with measured timings. Automated run on a throwaway account: send → uploaded 1.5 s → understood 4.2 s → search 5.1 s → MCP 6.2 s → Ask answered 8.3 s; 62 s including a minute of work. |
 
 ## What isn't built
 
@@ -45,7 +45,7 @@ Recall is a Windows tray app that remembers what you did in the apps you pick. T
 
 - One shared free Groq key serves everyone: about 1,000 requests a day and 8K tokens a minute, and episodes are understood one at a time. That's roughly one episode a minute for all users combined, so a few dozen active users would exhaust the day. No per-user quota.
 - Cloud search ranks every episode a user has (the combined score bypasses the vector index). Fine at hundreds, slow at tens of thousands.
-- Ask right after a send can answer "busy": understanding and Ask share the same 8K tokens a minute, and a 429 isn't retried.
+- Understanding and Ask share the same 8K tokens a minute. A short rate limit is now waited out once, but a second big send right before Ask can still make it answer "busy". Ask's prompt also grew (period overview, decisions, projects, history), so each question costs more of that budget.
 - Digests are written for 3 users per hourly run.
 
 **Setup and reach**
@@ -66,6 +66,8 @@ Recall is a Windows tray app that remembers what you did in the apps you pick. T
 - Browser URLs rely on the English name of the address bar; embeddings and full-text search are English-only.
 - Firefox URLs aren't read (Firefox is missing from the capture layer's browser list).
 - A chat's first read keeps only its latest 80 lines, by design; older history is never captured.
+- An open AI chat panel is read like everything else, so a long Claude Code session can take over an episode's summary (the demo script keeps that panel closed until the MCP step).
+- A period rundown sees at most 40 episodes (the most important), so a busy week is summarized from a subset.
 - Apps with poor accessibility support (canvas apps, games, some Electron apps) yield little or no text.
 - Local search is keyword-only; meaning search needs the cloud.
 - Timezone is one fixed offset from the latest device, so daylight-saving changes or travel shift "yesterday".
