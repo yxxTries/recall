@@ -13,8 +13,9 @@ MAX_BATCH = 32  # events folded together, so a burst costs one write per activit
 
 
 class MemoryWorker:
-    def __init__(self, store) -> None:
+    def __init__(self, store, sync=None) -> None:
         self.store = store
+        self.sync = sync  # cloud sync (Phase 7) sees the same events, in the same order
         self.tracker = ActivityTracker()
         self._queue: queue.Queue = queue.Queue(maxsize=MAX_QUEUED)
         self._thread = threading.Thread(target=self._run, name="memory-worker", daemon=True)
@@ -52,6 +53,8 @@ class MemoryWorker:
                 return
 
     def _store(self, events: list[dict]) -> None:
+        if self.sync:
+            self.sync.add(events)
         records = {}
         for e in events:
             record = self.tracker.add(e)

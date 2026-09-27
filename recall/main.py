@@ -1,6 +1,7 @@
 """Recall entry point: logging, PID file and the tray icon."""
 import logging
 import os
+import socket
 from logging.handlers import RotatingFileHandler
 
 import pystray
@@ -11,6 +12,9 @@ from recall.capture.vscode import EditorCapture, IngestServer
 from recall.config import data_dir, load_config, save_config
 from recall.memory.store import MemoryStore
 from recall.memory.worker import MemoryWorker
+from recall.sync.cloud import CloudSession
+from recall.sync.consent import ConsentServer
+from recall.sync.uploader import SyncWorker
 from recall.ui.hotkey import Hotkey
 from recall.watcher import AudioWatcher, ForegroundWatcher, windowed_apps
 
@@ -49,7 +53,9 @@ class TrayApp:
         self.known_apps = windowed_apps() | self.tracked  # choices in the "Tracked apps" menu
         self.paused = False
         self.store = MemoryStore(data_dir() / "memory.db", config["device_id"])
-        self.memory = MemoryWorker(self.store)
+        self.sync = SyncWorker(data_dir(), CloudSession(), config["device_id"], socket.gethostname())
+        self.memory = MemoryWorker(self.store, self.sync)
+        self.consent = None  # started in on_ready: the OAuth consent page for AI agents
         self.text = TextCapture(self.memory.submit)
         self.editor = EditorCapture(self.memory.submit)
         self.ingest = IngestServer(self.on_vscode_view)
@@ -124,6 +130,9 @@ class TrayApp:
         self.text.stop()
         self.ingest.stop()
         self.memory.stop()
+        self.sync.stop()  # after memory: closes the open episode and keeps it in the outbox
+        if self.consent:
+            self.consent.stop()
         self.hotkey.stop()
         icon.stop()
         if self.search:
@@ -133,6 +142,13 @@ class TrayApp:
         icon.visible = True
         log.info("tray icon visible")
         self.memory.start()
+        self.sync.start()
+        log.info("cloud sync %s", "on" if self.sync.cloud.signed_in else "off (not signed in)")
+        try:
+            self.consent = ConsentServer(self.sync.cloud)
+            self.consent.start()
+        except OSError:
+            log.warning("agent consent page unavailable: port in use")
         self.ingest.start()
         self.text.start()
         self.foreground.start()

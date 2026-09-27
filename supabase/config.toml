@@ -1,0 +1,14 @@
+# Supabase project config for Recall's cloud. Deployed with scripts/deploy_cloud.py.
+# Every function verifies credentials itself (@supabase/server), so the gateway's JWT check is off.
+
+[functions.ingest]
+verify_jwt = false
+
+[functions.understand]
+verify_jwt = false
+
+[functions.search]
+verify_jwt = false
+
+[functions.mcp]
+verify_jwt = false
