@@ -15,9 +15,9 @@ A Windows tray app that remembers what you were doing in the apps you choose. Th
 | Capture only tracked apps; untracked apps cost nothing | Done |
 | Text from tracked apps (UIA, VS Code extension) searchable on the device within 5 s | Done (1.5 s) |
 | Secrets and PII redacted on the device before upload | Done |
-| Episodes understood in the cloud within 2 min | Done (6–58 s) |
+| Episodes understood in the cloud within 2 min | Done (6–58 s; under 5 s with the send hotkey) |
 | Search by meaning across devices | Done (golden queries 20/20 in top 3) |
-| AI agents read your memory over MCP; other users see nothing | Done in tests; to verify with Claude Code on your account |
+| AI agents read your memory over MCP; other users see nothing | Done (Claude Code on your account, Sep 27) |
 | Speech from tracked apps searchable within 30 s | Not started (Phase 5, after the MVP) |
 | Near-zero idle CPU; capture never lags the tracked app | Measured 0.03% CPU; 30-min perf run still to do |
 | Demo runs end to end, twice in a row | Not started (Phase 8) |
@@ -48,7 +48,8 @@ CLOUD (Supabase, private per user)
 
 - [x] Sign up and log in: `python -m recall.sync.cloud signup`, then `login`; restart Recall
 - [x] Connect Claude Code: `claude mcp add --transport http recall https://mcrzydsnovhpevzmcchr.supabase.co/functions/v1/mcp`, authenticate, approve
-- [ ] Claude Code answers "what was I working on between X and Y?" with evidence
+- [x] Claude Code answers "what was I working on between X and Y?" with evidence (01:29 episode, via `get_timeline`)
+- [x] Send hotkey for the demo: `Ctrl+Alt+Esc` (Ctrl+Shift+Esc is Task Manager's) closes the open episode and uploads it; the upload starts understanding at once. Key press to understood episode: under 5 s
 - [ ] Push and tag `m7-cloud`
 
 **2. Finish Gate M4 (MVP checks)**
@@ -83,7 +84,7 @@ CLOUD (Supabase, private per user)
 
 1. Tray and app picker: Edge, VS Code and Teams tracked, Spotify not. (20 s)
 2. Read an article in Edge, edit a file in VS Code (play a talk clip if audio is done). (40 s)
-3. Hotkey, search a paraphrase, open the episode and its evidence. (40 s)
+3. `Ctrl+Alt+Esc` to send, then the search hotkey: search a paraphrase on All devices, open the episode and its evidence. (40 s)
 4. Perf monitor: CPU near 0% while idle. (20 s)
 5. Claude Code over MCP: "what was I working on this afternoon?" (40 s)
 6. Privacy close: allowlist, no keystrokes, redaction on the device, memory private to you. (20 s)

@@ -72,6 +72,9 @@ class SyncWorker:
         self.outbox = Outbox(folder / "outbox.db")
         self._lock = threading.Lock()  # the segmenter is fed by the memory worker and flushed by this thread
         self._stop = threading.Event()
+        self._wake = threading.Event()  # ends the timer thread's wait early: to stop, or to send now
+        self._on_sent = None  # set by send_now
+        self.uploaded = 0  # episodes the cloud accepted since start
         self._thread = threading.Thread(target=self._run, name="sync", daemon=True)
         self._wait = INTERVAL
         self._day = date.today()
@@ -81,11 +84,18 @@ class SyncWorker:
 
     def stop(self) -> None:
         self._stop.set()
+        self._wake.set()
         if self._thread.is_alive():
             self._thread.join(timeout=10)
         with self._lock:
             self._queue(self.segmenter.close())
             self.segmenter.rarity.save(self.rarity_path)
+
+    def send_now(self, on_sent) -> None:
+        """Close the open episode and upload at once (the send hotkey), on the timer thread.
+        on_sent(reached the cloud, episodes uploaded) reports back."""
+        self._on_sent = on_sent
+        self._wake.set()
 
     def add(self, events: list[dict]) -> None:
         with self._lock:
@@ -101,10 +111,10 @@ class SyncWorker:
             self.outbox.put(gzip.compress(json.dumps(batch).encode()))
             log.info("queued %d episodes for upload", len(episodes))
 
-    def tick(self) -> bool:
-        """Close idle episodes, then upload the outbox oldest first; False if the cloud couldn't be reached."""
+    def tick(self, close: bool = False) -> bool:
+        """Close idle episodes (or the open one), then upload the outbox oldest first; False if the cloud couldn't be reached."""
         with self._lock:
-            self._queue(self.segmenter.flush(datetime.now()))
+            self._queue(self.segmenter.close() if close else self.segmenter.flush(datetime.now()))
             if date.today() != self._day:  # word counts halve daily, so the last week decides what's common
                 self._day = date.today()
                 self.segmenter.rarity.decay()
@@ -122,14 +132,23 @@ class SyncWorker:
                 log.error("upload rejected, dropping the batch: %s", e)  # a bad batch mustn't block the rest
             else:
                 log.info("uploaded %s episodes", result.get("accepted"))
+                self.uploaded += result.get("accepted") or 0
             self.outbox.remove(seq)
         return True
 
     def _run(self) -> None:
-        while not self._stop.wait(self._wait):
+        while True:
+            self._wake.wait(self._wait)
+            if self._stop.is_set():
+                return
+            self._wake.clear()
+            on_sent, self._on_sent = self._on_sent, None
+            before = self.uploaded
             try:
-                ok = self.tick()
+                ok = self.tick(close=on_sent is not None)
             except Exception:
                 log.exception("sync failed")
                 ok = False
+            if on_sent:
+                on_sent(ok, self.uploaded - before)
             self._wait = INTERVAL if ok else min(self._wait * 2, MAX_WAIT)

@@ -9,7 +9,7 @@ log = logging.getLogger(__name__)
 user32 = ctypes.WinDLL("user32", use_last_error=True)
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 MOD_ALT, MOD_CONTROL, MOD_SHIFT, MOD_WIN, MOD_NOREPEAT = 0x0001, 0x0002, 0x0004, 0x0008, 0x4000
-VK_SPACE = 0x20
+VK_SPACE, VK_ESCAPE = 0x20, 0x1B
 WM_HOTKEY, WM_QUIT, WM_USER, PM_NOREMOVE = 0x0312, 0x0012, 0x0400, 0x0000
 HOTKEY_ID = 1
 # Tried in order; the first one no other app holds wins.
@@ -19,12 +19,18 @@ CANDIDATES = [
     (MOD_ALT | MOD_SHIFT, VK_SPACE, "Alt+Shift+Space"),
     (MOD_CONTROL | MOD_SHIFT | MOD_ALT, VK_SPACE, "Ctrl+Shift+Alt+Space"),
 ]
+# Send the current context to the cloud now. Ctrl+Shift+Esc belongs to Task Manager.
+SEND_CANDIDATES = [
+    (MOD_CONTROL | MOD_ALT, VK_ESCAPE, "Ctrl+Alt+Esc"),
+    (MOD_CONTROL | MOD_SHIFT | MOD_ALT, VK_ESCAPE, "Ctrl+Shift+Alt+Esc"),
+]
 
 
 class Hotkey:
-    def __init__(self, on_press, candidates=CANDIDATES) -> None:
+    def __init__(self, on_press, candidates=CANDIDATES, name: str = "search") -> None:
         self.on_press = on_press
         self.candidates = candidates
+        self.name = name
         self.label = ""  # the hotkey actually registered, e.g. "Ctrl+Alt+Space"
         self._ready = threading.Event()
         self._thread_id = 0
@@ -51,7 +57,7 @@ class Hotkey:
                 break
             log.info("%s is taken by another app", label)
         if not self.label:
-            log.warning("no free search hotkey; use the tray's Search item")
+            log.warning("no free %s hotkey; use the tray menu", self.name)
         self._ready.set()
         while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
             if msg.message == WM_HOTKEY:

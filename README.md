@@ -47,6 +47,8 @@ Without signing in, Recall still captures and searches on this device only.
 
 **Pick your apps:** click the tray icon, open **Tracked apps** and tick the apps to remember (for example `code.exe`, `msedge.exe`). Untracked apps are ignored and cost nothing. **Pause** stops all capture.
 
+**Send now:** episodes normally go to the cloud after 5 idle minutes or a change of task. Press `Ctrl+Alt+Esc` (or use **Send to cloud now** in the tray) to send what you're doing right away; it's understood a few seconds later and a notification confirms it. Handy for demos.
+
 **Search:** press `Ctrl+Shift+Space` (or `Win+Alt+Space` if that's taken; the tray menu shows which one). Type what something was about, not the exact words. Choose **All devices** to search your cloud memory.
 
 **VS Code:** install the Recall Companion extension so Recall sees the code you're viewing:

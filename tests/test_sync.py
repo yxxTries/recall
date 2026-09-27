@@ -1,6 +1,7 @@
 """Phase 7: the uploader against a fake cloud: redaction, network cuts, no gaps and no duplicates."""
 import gzip
 import json
+import threading
 from datetime import datetime, timedelta
 
 from recall.sync.cloud import CloudError
@@ -78,6 +79,22 @@ def test_a_network_cut_loses_nothing_and_duplicates_nothing(tmp_path):
     assert sync.tick() and sync.outbox.count() == 0
     starts = sorted(e["started"] for e in cloud.episodes.values())
     assert starts == [aware((T0 + timedelta(seconds=600 * i)).isoformat()) for i in range(6)]  # no gaps
+
+
+def test_send_now_uploads_the_open_episode_at_once(tmp_path):
+    cloud = FakeCloud()
+    sync = worker(tmp_path, cloud)
+    now = datetime.now()
+    sync.add([{"type": "text", "time": (now - timedelta(seconds=40 - 10 * i)).isoformat(timespec="seconds"),
+               "app": "code.exe", "title": "demo.py - recall - Visual Studio Code", "url": "",
+               "text": f"judges watch the demo step {i}"} for i in range(4)])
+    sync.start()
+    assert sync.tick() and not cloud.episodes  # still open: the timer alone would wait 5 idle minutes
+    sent, done = [], threading.Event()
+    sync.send_now(lambda reached, episodes: (sent.append((reached, episodes)), done.set()))
+    assert done.wait(5)
+    sync.stop()
+    assert sent == [(True, 1)] and len(cloud.episodes) == 1
 
 
 def test_resent_batches_are_harmless_and_bad_ones_are_dropped(tmp_path):

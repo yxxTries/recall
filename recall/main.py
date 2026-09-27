@@ -15,7 +15,7 @@ from recall.memory.worker import MemoryWorker
 from recall.sync.cloud import CloudSession
 from recall.sync.consent import ConsentServer
 from recall.sync.uploader import SyncWorker
-from recall.ui.hotkey import Hotkey
+from recall.ui.hotkey import SEND_CANDIDATES, Hotkey
 from recall.watcher import AudioWatcher, ForegroundWatcher, windowed_apps
 
 log = logging.getLogger("recall")
@@ -64,6 +64,7 @@ class TrayApp:
         )
         self.audio = AudioWatcher(self.tracked, log_event)
         self.hotkey = Hotkey(self.toggle_search)
+        self.send_hotkey = Hotkey(self.send_now, SEND_CANDIDATES, name="send")
         self.search = None  # created in run(): it needs the UI loop
         self.icon = pystray.Icon(
             "recall",
@@ -72,6 +73,8 @@ class TrayApp:
             menu=pystray.Menu(
                 pystray.MenuItem(lambda item: f"Search   {self.hotkey.label}".strip(),
                                  lambda icon, item: self.toggle_search(), default=True),
+                pystray.MenuItem(lambda item: f"Send to cloud now   {self.send_hotkey.label}".strip(),
+                                 lambda icon, item: self.send_now()),
                 pystray.MenuItem("Tracked apps", pystray.Menu(self.app_items)),
                 pystray.MenuItem("Pause", self.toggle_pause, checked=lambda item: self.paused),
                 pystray.MenuItem("Quit", self.quit),
@@ -81,6 +84,24 @@ class TrayApp:
     def toggle_search(self) -> None:
         if self.search:
             self.search.toggle()
+
+    def send_now(self) -> None:
+        # For demos: what you just did reaches the cloud now, not after 5 idle minutes.
+        if not self.sync.cloud.signed_in:
+            self.icon.notify("Not signed in to the cloud", "Recall")
+            return
+        log.info("send to cloud now")
+        self.sync.send_now(self.on_sent)
+
+    def on_sent(self, reached: bool, episodes: int) -> None:
+        if not reached:
+            message = "Couldn't reach the cloud; Recall will keep trying"
+        elif episodes:
+            message = f"Sent {episodes} episode{'s' if episodes > 1 else ''} to the cloud; understood in about 30 s"
+        else:
+            message = "Nothing new to send"
+        log.info(message)
+        self.icon.notify(message, "Recall")
 
     def on_vscode_view(self, view: dict) -> None:
         # The extension posts whenever VS Code has focus; Recall decides whether it's tracked.
@@ -134,6 +155,7 @@ class TrayApp:
         if self.consent:
             self.consent.stop()
         self.hotkey.stop()
+        self.send_hotkey.stop()
         icon.stop()
         if self.search:
             self.search.destroy()  # ends the UI loop in run()
@@ -156,7 +178,9 @@ class TrayApp:
         log.info("watchers started")
         if self.hotkey.start():
             log.info("search hotkey ready: %s", self.hotkey.label)
-            self.icon.update_menu()
+        if self.send_hotkey.start():
+            log.info("send hotkey ready: %s", self.send_hotkey.label)
+        self.icon.update_menu()
 
     def run(self) -> None:
         import webview
