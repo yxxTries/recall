@@ -32,6 +32,7 @@ CLOUD (Supabase, private per user)
 [ingest] -> [raw episodes, kept 24 h] -> [understand: Groq + gte-small] -> [episodes, timeline, threads, digests]
                                                                          -> [search]  -> Recall "All devices"
                                                                          -> [mcp]     -> AI agents (OAuth + consent on localhost:8766)
+                                                                         -> [ask]     -> Dashboard on Vercel (any device)
 ```
 
 **Key decisions**
@@ -50,7 +51,8 @@ CLOUD (Supabase, private per user)
 - [x] Connect Claude Code: `claude mcp add --transport http recall https://mcrzydsnovhpevzmcchr.supabase.co/functions/v1/mcp`, authenticate, approve
 - [x] Claude Code answers "what was I working on between X and Y?" with evidence (01:29 episode, via `get_timeline`)
 - [x] Send hotkey for the demo: `Ctrl+Alt+Esc` (Ctrl+Shift+Esc is Task Manager's) closes the open episode and uploads it; the upload starts understanding at once. Key press to understood episode: under 5 s
-- [ ] Push and tag `m7-cloud`
+- [ ] Push and tag `m7-cloud` (tagged locally)
+- [x] Dashboard at https://recall-memory-yxxtries.vercel.app (`web/`, deployed with the Vercel CLI): sign in with your Recall account from any device, see everything stored, and **Ask** in plain words (`ask` function: meaning search, then Groq answers citing the episodes)
 
 **2. Finish Gate M4 (MVP checks)**
 

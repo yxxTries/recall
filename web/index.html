@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Recall Memory</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 22'%3E%3Ccircle cx='11' cy='11' r='8' fill='none' stroke='%230b6e78' stroke-width='3'/%3E%3Ccircle cx='11' cy='11' r='3' fill='%230b6e78'/%3E%3C/svg%3E">
+<meta name="description" content="Your Recall cloud memory: ask it questions and see everything it stores.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap">
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f4f6f7;
+  --surface: #ffffff;
+  --sunk: #eaeef0;
+  --ink: #152026;
+  --muted: #5a6972;
+  --line: #d9e0e4;
+  --accent: #0b6e78;
+  --accent-ink: #ffffff;
+  --accent-soft: #dcefF0;
+  --warn: #9a5b00;
+  --warn-soft: #fbefd9;
+  --danger: #b3261e;
+  --sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --serif: "Newsreader", Georgia, "Times New Roman", serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0e1417;
+    --surface: #151d21;
+    --sunk: #1b252a;
+    --ink: #e3eaed;
+    --muted: #93a3ab;
+    --line: #27343a;
+    --accent: #56c2cb;
+    --accent-ink: #062a2e;
+    --accent-soft: #163337;
+    --warn: #f0b861;
+    --warn-soft: #33270f;
+    --danger: #ff8a80;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0e1417;
+  --surface: #151d21;
+  --sunk: #1b252a;
+  --ink: #e3eaed;
+  --muted: #93a3ab;
+  --line: #27343a;
+  --accent: #56c2cb;
+  --accent-ink: #062a2e;
+  --accent-soft: #163337;
+  --warn: #f0b861;
+  --warn-soft: #33270f;
+  --danger: #ff8a80;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.5 var(--sans);
+  padding-inline: 16px;
+  padding-block: env(safe-area-inset-top, 0px) env(safe-area-inset-bottom, 0px);
+}
+.wrap { max-width: 980px; margin-inline: auto; }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.label { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+
+/* top bar */
+.bar { display: flex; align-items: center; gap: 12px; padding-block: 18px; border-bottom: 1px solid var(--line); }
+.mark { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 17px; }
+.mark svg { flex: none; }
+.bar .who { margin-left: auto; display: flex; align-items: center; gap: 12px; min-width: 0; }
+.bar .who span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 14px; }
+.link-btn { background: none; border: 0; padding: 4px 0; color: var(--accent); font-weight: 500; }
+
+/* sign in */
+.signin { max-width: 380px; margin: 12vh auto 0; display: grid; gap: 18px; }
+.signin h1 { font: 500 30px/1.2 var(--serif); }
+.signin form { display: grid; gap: 12px; }
+.field { display: grid; gap: 6px; }
+.field input { padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.primary { padding: 10px 16px; border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.primary:disabled { opacity: .6; cursor: default; }
+.error { color: var(--danger); font-size: 14px; }
+
+/* ask */
+.ask { margin-block: 28px 8px; display: grid; gap: 14px; }
+.ask h1 { font: 500 clamp(26px, 4vw, 34px)/1.15 var(--serif); }
+.askbox { display: flex; gap: 8px; flex-wrap: wrap; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.askbox input { flex: 1 1 260px; min-width: 0; border: 0; background: none; padding: 8px 10px; font-size: 16px; }
+.askbox input:focus-visible { outline: none; }
+.askbox:focus-within { border-color: var(--accent); }
+.askbox select { border: 1px solid var(--line); border-radius: 8px; background: var(--sunk); padding: 6px 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 4px 12px; font-size: 13px; color: var(--muted); }
+.chip:hover { color: var(--ink); border-color: var(--muted); }
+.answer { border-left: 3px solid var(--accent); padding: 4px 0 4px 16px; display: grid; gap: 12px; }
+.answer p { margin: 0; font: 400 19px/1.5 var(--serif); max-width: 65ch; }
+.answer .cites { display: grid; gap: 8px; }
+.cite { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; align-items: baseline; font-size: 14px; }
+.cite .mono { font-size: 12px; color: var(--muted); }
+
+/* summary strip */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin-block: 28px; }
+.stat { background: var(--surface); padding: 14px 16px; display: grid; gap: 2px; }
+.stat b { font: 500 24px/1.2 var(--mono); font-variant-numeric: tabular-nums; }
+.stat.attn b { color: var(--warn); }
+
+/* tabs */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; overflow-y: hidden; }
+.tab { border: 0; background: none; padding: 10px 12px; color: var(--muted); font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.panel { padding-block: 8px 48px; }
+.day { margin-top: 22px; }
+.day > .label { padding-bottom: 6px; border-bottom: 1px solid var(--line); display: block; }
+
+/* rows */
+.row { border-bottom: 1px solid var(--line); }
+.row > button { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: grid; grid-template-columns: 10.5rem 1fr auto; gap: 12px; align-items: baseline; padding: 12px 4px; }
+.row > button:focus-visible { outline: 2px solid var(--accent); }
+.row > button:hover .what { color: var(--accent); }
+.row .when { white-space: nowrap; font: 13px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.row .what { font-weight: 500; }
+.apps { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.app { font: 12px var(--mono); padding: 1px 8px; border-radius: 999px; background: var(--sunk); color: var(--muted); }
+.pill { font-size: 12px; padding: 1px 8px; border-radius: 999px; font-weight: 500; }
+.pill.wait { background: var(--warn-soft); color: var(--warn); }
+.pill.done { background: var(--accent-soft); color: var(--accent); }
+.detail { padding: 4px 4px 18px calc(10.5rem + 16px); display: grid; gap: 12px; }
+.detail p { margin: 0; max-width: 70ch; }
+.detail ul { margin: 0; padding-left: 18px; }
+.detail blockquote { margin: 0; padding: 6px 10px; border-left: 2px solid var(--line); color: var(--muted); font-size: 14px; }
+.spans { overflow-x: auto; }
+.spans table { border-collapse: collapse; font-size: 13px; }
+.spans td { padding: 4px 12px 4px 0; vertical-align: top; }
+.spans td:first-child { font-family: var(--mono); color: var(--muted); white-space: nowrap; }
+pre.raw { white-space: pre-wrap; word-break: break-word; font: 12.5px/1.55 var(--mono); background: var(--sunk); padding: 12px; border-radius: 8px; max-height: 320px; overflow: auto; margin: 0; }
+.empty { padding: 28px 4px; color: var(--muted); max-width: 60ch; }
+.card-list { display: grid; gap: 12px; margin-top: 16px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: grid; gap: 6px; }
+.card h3 { font-size: 16px; font-weight: 600; }
+.foot { padding-block: 24px 40px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+
+@media (max-width: 640px) {
+  .row > button { grid-template-columns: 1fr; gap: 4px; }
+  .apps { justify-content: flex-start; }
+  .detail { padding-left: 4px; }
+  .bar .who span { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="bar">
+    <div class="mark">
+      <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="8" fill="none" stroke="var(--accent)" stroke-width="3"/><circle cx="11" cy="11" r="3" fill="var(--accent)"/></svg>
+      Recall
+    </div>
+    <div class="who" id="who" hidden><span id="email"></span><button class="link-btn" id="signout" type="button">Sign out</button></div>
+  </header>
+
+  <section class="signin" id="signin" hidden>
+    <h1>Your memory, from anywhere</h1>
+    <p class="muted">Sign in with the Recall account you use on your devices. You see only your own memory.</p>
+    <form id="signin-form">
+      <div class="field"><label class="label" for="in-email">Email</label><input id="in-email" type="email" autocomplete="username" required></div>
+      <div class="field"><label class="label" for="in-password">Password</label><input id="in-password" type="password" autocomplete="current-password" required></div>
+      <button class="primary" id="in-submit" type="submit">Sign in</button>
+      <div class="error" id="in-error" role="alert"></div>
+    </form>
+  </section>
+
+  <main id="app" hidden>
+    <section class="ask">
+      <h1>Ask your memory</h1>
+      <form class="askbox" id="ask-form">
+        <input id="ask-q" aria-label="Question" placeholder="What was I working on this afternoon?" autocomplete="off" maxlength="500">
+        <select id="ask-range" aria-label="Time range">
+          <option value="any">Any time</option>
+          <option value="today">Today</option>
+          <option value="week">Last 7 days</option>
+        </select>
+        <button class="primary" id="ask-go" type="submit">Ask</button>
+      </form>
+      <div class="chips" id="suggest"></div>
+      <div id="answer" aria-live="polite"></div>
+    </section>
+
+    <div class="stats" id="stats"></div>
+
+    <nav class="tabs" role="tablist" id="tabs"></nav>
+    <section class="panel" id="panel"></section>
+  </main>
+
+  <footer class="foot" id="foot" hidden>
+    Screen text is redacted on your device before upload. Raw text is deleted 24 hours after it's understood; the understood memory stays until you delete your account.
+  </footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+<script>
+const SUPABASE_URL = 'https://mcrzydsnovhpevzmcchr.supabase.co'
+const SUPABASE_KEY = 'sb_publishable_MIHLVV475ij7QnYGZSIuaw_si9gI7On' // publishable key: safe in a browser; row-level security guards the data
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
+const $ = (id) => document.getElementById(id)
+
+// Build DOM from text only: screen text never becomes HTML.
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag)
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue
+    if (k.startsWith('on')) el.addEventListener(k.slice(2), v)
+    else if (k === 'class') el.className = v
+    else el.setAttribute(k, v === true ? '' : v)
+  }
+  for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid instanceof Node ? kid : String(kid))
+  return el
+}
+
+const time = (iso) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+const dayName = (iso) => new Date(iso).toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })
+const stamp = (iso) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+const appName = (a) => a.replace(/\.exe$/i, '')
+const apps = (list) => h('span', { class: 'apps' }, (list || []).map((a) => h('span', { class: 'app' }, appName(a))))
+
+let devices = {}
+
+// ---------- sign in ----------
+async function show(session) {
+  $('signin').hidden = !!session
+  $('app').hidden = $('who').hidden = $('foot').hidden = !session
+  if (!session) return
+  $('email').textContent = session.user.email
+  await load()
+}
+
+$('signin-form').addEventListener('submit', async (e) => {
+  e.preventDefault()
+  $('in-error').textContent = ''
+  $('in-submit').disabled = true
+  const { error } = await db.auth.signInWithPassword({ email: $('in-email').value.trim(), password: $('in-password').value })
+  $('in-submit').disabled = false
+  if (error) $('in-error').textContent = error.message === 'Invalid login credentials'
+    ? 'That email and password don\'t match a Recall account.' : error.message
+})
+$('signout').addEventListener('click', () => db.auth.signOut())
+db.auth.onAuthStateChange((event, session) => {
+  // Deferred: calling Supabase from inside this callback can deadlock the auth client.
+  if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'INITIAL_SESSION') setTimeout(() => show(session), 0)
+})
+
+// ---------- ask ----------
+const SUGGESTIONS = ['What was I working on today?', 'What did I decide recently?', 'Which files did I edit in VS Code?', 'What should I follow up on?']
+$('suggest').append(...SUGGESTIONS.map((q) => h('button', { class: 'chip', type: 'button', onclick: () => { $('ask-q').value = q; ask() } }, q)))
+$('ask-form').addEventListener('submit', (e) => { e.preventDefault(); ask() })
+
+function since(range) {
+  const d = new Date()
+  if (range === 'today') { d.setHours(0, 0, 0, 0); return d.toISOString() }
+  if (range === 'week') return new Date(d - 7 * 864e5).toISOString()
+  return undefined
+}
+
+async function ask() {
+  const question = $('ask-q').value.trim()
+  if (!question) return $('ask-q').focus()
+  const out = $('answer')
+  out.replaceChildren(h('p', { class: 'muted' }, 'Looking through your memory…'))
+  $('ask-go').disabled = true
+  const { data, error } = await db.functions.invoke('ask', {
+    body: { question, since: since($('ask-range').value), utc_offset_minutes: -new Date().getTimezoneOffset() },
+  })
+  $('ask-go').disabled = false
+  if (error) {
+    let message = 'Could not reach your memory. Check your connection and try again.'
+    try { message = (await error.context.json()).error || message } catch {}
+    return out.replaceChildren(h('p', { class: 'error' }, message))
+  }
+  const byId = Object.fromEntries(data.episodes.map((e) => [e.episode_id, e]))
+  const cited = data.cited.map((id) => byId[id]).filter(Boolean)
+  out.replaceChildren(h('div', { class: 'answer' },
+    h('p', {}, data.answer),
+    cited.length ? h('div', { class: 'cites' },
+      h('span', { class: 'label' }, cited.length === 1 ? 'From this episode' : `From these ${cited.length} episodes`),
+      cited.map((e) => h('div', { class: 'cite' },
+        h('span', { class: 'mono' }, `${stamp(e.started)}–${time(e.ended)}`),
+        h('span', {}, e.worked_on)))) : null))
+}
+
+// ---------- what's stored ----------
+const count = async (table, filter) => {
+  let q = db.from(table).select('*', { count: 'exact', head: true })
+  if (filter) q = filter(q)
+  const { count: n } = await q
+  return n ?? 0
+}
+
+async function load() {
+  const [{ data: devs }, episodes, waiting, raw, threads, digests] = await Promise.all([
+    db.from('devices').select('device_id, name, first_seen, last_seen').order('last_seen', { ascending: false }),
+    count('episodes'), count('raw_episodes', (q) => q.is('understood', null)), count('raw_episodes'),
+    count('threads'), count('digests'),
+  ])
+  devices = Object.fromEntries((devs || []).map((d) => [d.device_id, d.name || d.device_id.slice(0, 8)]))
+  $('stats').replaceChildren(
+    stat('Episodes understood', episodes),
+    stat('Waiting to be understood', waiting, waiting > 0),
+    stat('Raw text held', raw),
+    stat('Threads', threads),
+    stat('Daily digests', digests),
+    stat('Devices', (devs || []).length))
+  tabs.Devices = () => devicesPanel(devs || [])
+  renderTabs()
+}
+
+function stat(label, n, attention) {
+  return h('div', { class: attention ? 'stat attn' : 'stat' }, h('span', { class: 'label' }, label), h('b', {}, n.toLocaleString()))
+}
+
+const tabs = { Timeline: timeline, Threads: threadsPanel, Digests: digestsPanel, Devices: null, 'Raw text': rawPanel }
+let current = 'Timeline'
+try { current = localStorage.getItem('recall-tab') || current } catch {}
+
+function renderTabs() {
+  if (!(current in tabs)) current = 'Timeline'
+  $('tabs').replaceChildren(...Object.keys(tabs).map((name) => h('button', {
+    class: 'tab', role: 'tab', type: 'button', 'aria-selected': String(name === current),
+    onclick: () => { current = name; try { localStorage.setItem('recall-tab', name) } catch {} renderTabs() },
+  }, name)))
+  $('panel').replaceChildren(h('p', { class: 'muted' }, 'Loading…'))
+  tabs[current]().then((nodes) => $('panel').replaceChildren(...[nodes].flat()))
+    .catch((e) => $('panel').replaceChildren(h('p', { class: 'error' }, `Could not load this: ${e.message}`)))
+}
+
+function check({ data, error }) {
+  if (error) throw new Error(error.message)
+  return data
+}
+
+async function timeline() {
+  const rows = check(await db.from('episodes')
+    .select('episode_id, device_id, started, ended, apps, worked_on, context, actions, important, people, evidence, importance')
+    .order('started', { ascending: false }).limit(150))
+  if (!rows.length) return h('p', { class: 'empty' },
+    'Nothing understood yet. Tick an app under Tracked apps in Recall\'s tray, then press Ctrl+Alt+Esc to send what you\'re doing.')
+  const days = new Map()
+  for (const e of rows) {
+    const key = new Date(e.started).toDateString()
+    if (!days.has(key)) days.set(key, [])
+    days.get(key).push(e)
+  }
+  return [...days.values()].map((list) => h('div', { class: 'day' },
+    h('span', { class: 'label' }, dayName(list[0].started)), list.map(episodeRow)))
+}
+
+function episodeRow(e) {
+  const detail = h('div', { class: 'detail', hidden: true })
+  let loaded = false
+  const toggle = async () => {
+    detail.hidden = !detail.hidden
+    button.setAttribute('aria-expanded', String(!detail.hidden))
+    if (loaded || detail.hidden) return
+    loaded = true
+    const spans = check(await db.from('timeline_spans').select('app, title, url, started, ended')
+      .eq('episode_id', e.episode_id).order('started'))
+    detail.append(section('Window spans', h('div', { class: 'spans' }, h('table', {}, h('tbody', {},
+      spans.map((s) => h('tr', {}, h('td', {}, `${time(s.started)}–${time(s.ended)}`), h('td', {}, appName(s.app)), h('td', {}, s.title))))))))
+  }
+  const button = h('button', { type: 'button', 'aria-expanded': 'false', onclick: toggle },
+    h('span', { class: 'when' }, `${time(e.started)}–${time(e.ended)}`),
+    h('span', { class: 'what' }, e.worked_on),
+    apps(e.apps))
+  detail.append(
+    e.context ? h('p', {}, e.context) : null,
+    list('Actions', e.actions), list('Important', e.important),
+    e.people?.length ? section('People', h('p', {}, e.people.join(', '))) : null,
+    e.evidence?.length ? section('Evidence from your screen', e.evidence.map((q) => h('blockquote', {}, q))) : null,
+    h('p', { class: 'muted mono', style: 'font-size:12px' }, `${devices[e.device_id] || 'device'} · importance ${e.importance}/10 · ${e.episode_id}`))
+  return h('div', { class: 'row' }, button, detail)
+}
+
+const section = (title, ...body) => h('div', {}, h('div', { class: 'label' }, title), ...body)
+const list = (title, items) => items?.length ? section(title, h('ul', {}, items.map((i) => h('li', {}, i)))) : null
+
+async function threadsPanel() {
+  const rows = check(await db.from('threads').select('id, title, summary, started, ended, episodes')
+    .order('ended', { ascending: false }).limit(50))
+  if (!rows.length) return h('p', { class: 'empty' }, 'No threads yet. Episodes about the same work are linked into a thread as they\'re understood.')
+  return h('div', { class: 'card-list' }, rows.map((t) => h('div', { class: 'card' },
+    h('h3', {}, t.title),
+    t.summary ? h('p', { style: 'margin:0' }, t.summary) : null,
+    h('span', { class: 'muted mono', style: 'font-size:12px' },
+      `${t.episodes} episode${t.episodes === 1 ? '' : 's'} · ${stamp(t.started)} to ${stamp(t.ended)}`))))
+}
+
+async function digestsPanel() {
+  const rows = check(await db.from('digests').select('day, summary, highlights').order('day', { ascending: false }).limit(30))
+  if (!rows.length) return h('p', { class: 'empty' }, 'No daily digests yet. A day is summarized after 3 am the next morning.')
+  return h('div', { class: 'card-list' }, rows.map((d) => h('div', { class: 'card' },
+    h('h3', {}, new Date(`${d.day}T12:00:00`).toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })),
+    h('p', { style: 'margin:0' }, d.summary),
+    d.highlights?.length ? h('ul', { style: 'margin:0;padding-left:18px' }, d.highlights.map((x) => h('li', {}, x))) : null)))
+}
+
+async function devicesPanel(devs) {
+  if (!devs.length) return h('p', { class: 'empty' }, 'No devices yet. A device appears after its first upload.')
+  return h('div', { class: 'card-list' }, devs.map((d) => h('div', { class: 'card' },
+    h('h3', {}, d.name || 'Unnamed device'),
+    h('span', { class: 'muted mono', style: 'font-size:12px' }, `last upload ${stamp(d.last_seen)} · first seen ${stamp(d.first_seen)} · ${d.device_id}`))))
+}
+
+async function rawPanel() {
+  const rows = check(await db.from('raw_episodes').select('episode_id, device_id, started, ended, text, received, understood')
+    .order('received', { ascending: false }).limit(50))
+  const intro = h('p', { class: 'muted', style: 'max-width:65ch' },
+    'Text exactly as your devices sent it, after redaction (placeholders like ⟨SECRET:1⟩ replace secrets and contact details). Each one is deleted 24 hours after it\'s understood.')
+  if (!rows.length) return [intro, h('p', { class: 'empty' }, 'No raw text is held right now.')]
+  return [intro, ...rows.map((r) => {
+    const detail = h('div', { class: 'detail', hidden: true }, h('pre', { class: 'raw' }, r.text || '(no text)'))
+    const button = h('button', { type: 'button', 'aria-expanded': 'false', onclick: () => {
+      detail.hidden = !detail.hidden; button.setAttribute('aria-expanded', String(!detail.hidden))
+    } },
+      h('span', { class: 'when' }, `${time(r.started)}–${time(r.ended)}`),
+      h('span', { class: 'what' }, `${dayName(r.started)} · ${devices[r.device_id] || 'device'} · ${r.text.length.toLocaleString()} characters`),
+      r.understood
+        ? h('span', { class: 'pill done' }, `deletes ${stamp(new Date(Date.parse(r.understood) + 864e5).toISOString())}`)
+        : h('span', { class: 'pill wait' }, 'waiting'))
+    return h('div', { class: 'row' }, button, detail)
+  })]
+}
+</script>
+</body>
+</html>

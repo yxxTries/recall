@@ -11,3 +11,4 @@ dist/
 *.spec
 *.vsix
 supabase/.temp/
+.playwright-mcp/

@@ -14,10 +14,11 @@ CLOUD (Supabase, private per user)
 [ingest] -> [raw episodes, kept 24 h] -> [understand: Groq + gte-small] -> [episodes, timeline, threads, digests]
                                                                          -> [search] -> Recall "All devices"
                                                                          -> [mcp]    -> AI agents (OAuth + consent on localhost:8766)
+                                                                         -> [ask]    -> Dashboard (web, any device)
 ```
 
 - **Device** (`recall/`): Python 3.10, one process. A foreground watcher notices when a tracked app is in front. Text comes from UI Automation, or from the Recall Companion extension for VS Code. Activity lands in a local SQLite store with a keyword index, so search works offline. The same events are cut into episodes when the topic drifts (CUSUM over word and app features), deduplicated (SimHash), redacted and queued in a gzip outbox that uploads every 60 s and survives going offline.
-- **Cloud** (`supabase/`): Postgres with pgvector, pgmq and pg_cron, plus four Edge Functions. `ingest` stores raw episodes. `understand` runs every minute and asks Groq (`openai/gpt-oss-120b`, Cerebras as fallback) for a summary, actions, important points and people, then embeds the result with gte-small. `search` serves Recall's "All devices" search. `mcp` is a read-only MCP server for AI agents. Row-level security keeps each user's memory private.
+- **Cloud** (`supabase/`): Postgres with pgvector, pgmq and pg_cron, plus four Edge Functions. `ingest` stores raw episodes. `understand` runs every minute and asks Groq (`openai/gpt-oss-120b`, Cerebras as fallback) for a summary, actions, important points and people, then embeds the result with gte-small. `search` serves Recall's "All devices" search. `ask` answers a question in plain words from your episodes, citing them. `mcp` is a read-only MCP server for AI agents. Row-level security keeps each user's memory private.
 
 ## Setup
 
@@ -82,6 +83,15 @@ Then run `/mcp` in Claude Code and authenticate. Your browser opens Recall's con
 | `daily_digest` | A summary of one day. |
 
 Try: *"What was I working on this afternoon?"*
+
+## Dashboard
+
+**https://recall-memory-yxxtries.vercel.app**: sign in with your Recall account from any browser.
+
+- **Ask your memory:** type a question ("What did I decide about the sponsor?"); the answer cites the episodes it came from. Limit it to today or the last 7 days if you like.
+- **What's stored:** counts of everything in the cloud, a timeline of understood episodes (open one for its actions, evidence and window spans), threads, daily digests, devices, and the raw redacted text still held (with when it will be deleted).
+
+It's one static page, `web/index.html`, holding only the project URL and publishable key; row-level security keeps each account to its own memory. Deploy it with `cd web` then `vercel deploy --prod`.
 
 ## Privacy
 

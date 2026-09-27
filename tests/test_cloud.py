@@ -117,6 +117,11 @@ def test_device_b_finds_by_meaning_what_device_a_captured(users, tmp_path):
     print(f"search score {top['score']:.2f}: {top['worked_on']}")
     assert top["episode_id"] == episode["episode_id"] and top["device_id"] == "device-1"
 
+    # The dashboard's Ask: an answer in plain words, citing the episode it came from.
+    asked = device_2.call("ask", json.dumps({"question": "Which sponsor did we pick for the hackathon?"}).encode())
+    print(f"ask: {asked['answer']}")
+    assert "Contoso" in asked["answer"] and asked["cited"] == [episode["episode_id"]]
+
     # The search window's "All devices" option on device 2.
     window = SearchApi(store=None, cloud=device_2)
     assert window.search("", where="all")[0]["title"] == episode["worked_on"]
@@ -141,6 +146,7 @@ def test_another_user_sees_nothing(users):
     for table in ("episodes", "raw_episodes", "timeline_spans", "threads", "devices"):
         assert rest(other, table) == [], table
     assert other.call("search", json.dumps({"query": "hackathon sponsor"}).encode())["results"] == []
+    assert other.call("ask", json.dumps({"question": "Which sponsor did we pick?"}).encode())["cited"] == []
     assert tool(other, "search_memory", {"query": "hackathon sponsor"}) == []
     assert tool(other, "list_threads", {}) == []
 

@@ -3,7 +3,7 @@
 1. SQL migrations in supabase/migrations (each applied once)
 2. The understand job: pg_cron calls the function every minute with the secret key (kept in Vault)
 3. Function secrets: the LLM keys
-4. Edge Functions: ingest, understand, search, mcp
+4. Edge Functions: ingest, understand, search, mcp, ask
 5. Auth: the OAuth 2.1 server for MCP clients, with the consent page on Recall's localhost:8766
 
 Needs SUPABASE_ACCESS_TOKEN (a personal access token) in .env. Prints no secret values.
@@ -18,7 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 API = "https://api.supabase.com/v1/projects"
-FUNCTIONS = ["ingest", "understand", "search", "mcp"]
+FUNCTIONS = ["ingest", "understand", "search", "mcp", "ask"]
 CONSENT_ORIGIN = "http://localhost:8766"
 
 
