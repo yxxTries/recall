@@ -106,6 +106,7 @@ def configure_auth(env: dict) -> None:
         "oauth_server_enabled": True,
         "oauth_server_authorization_path": "/oauth/consent",
         "oauth_server_allow_dynamic_registration": True,  # MCP clients register themselves; you approve each one
+        "mailer_autoconfirm": True,  # a new account works at once: the built-in mailer only reaches the team's addresses
     })
     print(f"OAuth server on; consent page at {CONSENT_ORIGIN}/oauth/consent")
 

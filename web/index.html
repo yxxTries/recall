@@ -241,11 +241,14 @@ pre.raw { white-space: pre-wrap; word-break: break-word; font: 12.5px/1.55 var(-
 
   <section class="signin" id="signin" hidden>
     <h1>Your memory, from anywhere</h1>
-    <p class="muted">Sign in with the Recall account you use on your devices. You see only your own memory.</p>
+    <p class="muted">Sign in with the Recall account you use on your devices, or create one. You see only your own memory.</p>
     <form id="signin-form">
       <div class="field"><label class="label" for="in-email">Email</label><input id="in-email" type="email" autocomplete="username" required></div>
-      <div class="field"><label class="label" for="in-password">Password</label><input id="in-password" type="password" autocomplete="current-password" required></div>
-      <button class="primary" id="in-submit" type="submit">Sign in</button>
+      <div class="field"><label class="label" for="in-password">Password</label><input id="in-password" type="password" autocomplete="current-password" minlength="6" required></div>
+      <div class="actions">
+        <button class="primary" id="in-submit" type="submit">Sign in</button>
+        <button class="secondary" id="in-signup" type="submit">Create account</button>
+      </div>
       <div class="error" id="in-error" role="alert"></div>
     </form>
   </section>
@@ -393,14 +396,22 @@ async function consent(session) {
     h('p', { class: 'muted small' }, 'You can see and revoke every agent later under Agents on the ', h('a', { href: '/' }, 'dashboard'), '.'))
 }
 
+// One form: Sign in, or Create account (a new account is signed in at once).
 $('signin-form').addEventListener('submit', async (e) => {
   e.preventDefault()
+  const signUp = e.submitter?.id === 'in-signup'
+  const login = { email: $('in-email').value.trim(), password: $('in-password').value }
   $('in-error').textContent = ''
-  $('in-submit').disabled = true
-  const { error } = await db.auth.signInWithPassword({ email: $('in-email').value.trim(), password: $('in-password').value })
-  $('in-submit').disabled = false
-  if (error) $('in-error').textContent = error.message === 'Invalid login credentials'
-    ? 'That email and password don\'t match a Recall account.' : error.message
+  $('in-submit').disabled = $('in-signup').disabled = true
+  const { data, error } = await (signUp ? db.auth.signUp(login) : db.auth.signInWithPassword(login))
+  $('in-submit').disabled = $('in-signup').disabled = false
+  if (error) {
+    $('in-error').textContent = error.message === 'Invalid login credentials' ? 'That email and password don\'t match a Recall account.'
+      : error.message === 'User already registered' ? 'There\'s already a Recall account with this email. Sign in instead.'
+      : error.message
+  } else if (signUp && !data.session) { // the project asks new accounts to confirm their email first
+    $('in-error').textContent = 'Account created. Open the link we emailed you, then sign in here.'
+  }
 })
 $('signout').addEventListener('click', () => db.auth.signOut())
 db.auth.onAuthStateChange((event, session) => {
