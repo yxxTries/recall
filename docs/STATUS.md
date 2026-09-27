@@ -1,6 +1,6 @@
 # Recall — Where It Stands
 
-Sep 27, 2026 · status after the parallel build sessions
+Sep 27, 2026 · status of `main` at `ebbc142`, after the parallel build sessions ("Cloud data lookup system" and "Context memory and performance testing") stopped at the usage limit. Work they left uncommitted on the PC isn't included.
 
 Recall is a Windows tray app that remembers what you did in the apps you pick. The device reads their text (no models, no keystrokes, no screenshots), cuts it into episodes, redacts secrets and uploads them. In the cloud a free LLM turns each episode into memory, which you search from the tray, ask about on a web dashboard, or hand to an AI agent over MCP.
 
