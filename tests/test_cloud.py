@@ -6,9 +6,11 @@ Deleting a user deletes everything they stored (foreign keys cascade).
 import gzip
 import json
 import secrets
+import tempfile
 import time
 import urllib.request
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import pytest
 
@@ -246,3 +248,78 @@ def test_yesterday_gets_a_digest(tmp_path):
         assert "Contoso" in digest["summary"] + " ".join(digest["highlights"])
     finally:
         admin("DELETE", f"users/{user}")
+
+
+GOLDEN = [  # (worked_on, context, topics, a paraphrased question that avoids the key words)
+    ("Read an article comparing vector databases for semantic search",
+     "Compared pgvector, Pinecone and Weaviate on HNSW index speed and cost.", ["vector databases", "hnsw"],
+     "that piece about stores for embeddings"),
+    ("Debugged the tray icon not updating when capture is paused", "pystray menu refresh in recall/main.py.",
+     ["pystray", "tray icon"], "the bug with the little system notification area symbol"),
+    ("Weekly sync with Sarah and Dev on vendor shortlist", "Acme, Globex and Initech; decide by Friday.",
+     ["vendors", "procurement"], "meeting where we narrowed down which supplier to buy from"),
+    ("Booked flights to Lisbon for the conference", "Chose the TAP morning flight on 14 October.", ["travel", "flights"],
+     "when did I sort out the plane tickets to Portugal"),
+    ("Wrote unit tests for the redaction of API keys and emails", "Precision and recall fixtures for secrets.",
+     ["redaction", "privacy"], "tests for hiding passwords and personal info"),
+    ("Listened to a podcast episode about sleep and caffeine", "Huberman on delaying coffee after waking.",
+     ["sleep", "coffee", "health"], "the audio show on rest and energy drinks"),
+    ("Configured Supabase OAuth server for MCP clients", "Enabled dynamic registration and the consent page.",
+     ["oauth", "mcp", "supabase"], "setting up login for AI agents"),
+    ("Reviewed the quarterly budget spreadsheet with finance", "Marketing spend is 12% over plan.",
+     ["budget", "finance"], "the money review where we were overspending on ads"),
+    ("Practised Spanish vocabulary in Duolingo", "Food and restaurant words, 20-day streak.", ["spanish", "language"],
+     "learning words in another language on my phone app"),
+    ("Designed the landing page hero section in Figma", "Dark theme, big search box screenshot.",
+     ["design", "figma", "landing page"], "mockup of the website's top banner"),
+    ("Investigated high memory use from ONNX batch size", "RAM rose to 2.2 GB with batch 256.",
+     ["memory", "onnx", "performance"], "why the app was eating gigabytes of RAM"),
+    ("Chat with landlord about rent increase", "Oakwood Apartments proposes 6% from January.",
+     ["rent", "housing"], "conversation about paying more for my flat"),
+    ("Watched a lecture on Bayesian change-point detection", "Online run-length posterior for segmenting streams.",
+     ["statistics", "change-point"], "video about detecting when a data stream shifts"),
+    ("Planned the hackathon demo script and rehearsal", "Three-minute flow ending with the agent question.",
+     ["hackathon", "demo"], "preparing what to show the judges"),
+    ("Fixed the Groq rate limit handling in the understand function", "Falls back to Cerebras on 429.",
+     ["groq", "rate limits"], "what happens when the LLM provider says too many requests"),
+    ("Ordered a birthday present for Mum", "A ceramic teapot from Etsy, arrives Thursday.", ["gift", "family"],
+     "buying something for my mother's celebration"),
+    ("Read the Windows audio loopback capture documentation", "ActivateAudioInterfaceAsync with process loopback.",
+     ["audio", "wasapi"], "recording sound from one specific program"),
+    ("Refactored the SQLite store to upsert activities", "insert on conflict do update, FTS rewrite.",
+     ["sqlite", "database"], "changing how local records get saved or updated"),
+    ("Discussed sponsor choice with Priya and Marco", "Picked Contoso for Saturday mentoring.",
+     ["sponsors", "hackathon"], "which company is backing our team"),
+    ("Went through GitHub notifications and closed stale issues", "Closed 14 issues older than 90 days.",
+     ["github", "issues"], "cleaning up old tickets in the repo"),
+]
+
+
+def test_golden_paraphrases_find_their_memory_in_the_top_3():
+    """Retrieval only: seeded episodes (as if understood), found by questions that avoid their words."""
+    key = secret_key()
+    service = {"apikey": key, "Content-Type": "application/json"}
+    user = admin("POST", "users", {"email": f"recall-test-g-{secrets.token_hex(4)}@example.com",
+                                   "password": (password := secrets.token_urlsafe(18)), "email_confirm": True})
+    try:
+        base = datetime.now().astimezone() - timedelta(days=3)
+        request("POST", f"{URL}/rest/v1/episodes", service, json.dumps([
+            {"user_id": user["id"], "episode_id": f"g{i}", "device_id": "device-g", "worked_on": what,
+             "context": context, "topics": topics, "importance": 5,
+             "started": (base + timedelta(hours=i)).isoformat(), "ended": (base + timedelta(hours=i, minutes=30)).isoformat()}
+            for i, (what, context, topics, _) in enumerate(GOLDEN)]).encode())
+        while request("POST", f"{URL}/functions/v1/understand", service, b'{"task": "embed"}', timeout=120)["embedded"]:
+            pass
+        session = CloudSession(Path(tempfile.mkdtemp()) / "cloud.json")
+        session.sign_in(user["email"], password)
+        ranks = []
+        for i, (*_, question) in enumerate(GOLDEN):
+            results = session.call("search", json.dumps({"query": question, "k": 20}).encode())["results"]
+            ids = [r["episode_id"] for r in results]
+            ranks.append(ids.index(f"g{i}") + 1 if f"g{i}" in ids else None)
+        top3 = sum(1 for r in ranks if r and r <= 3)
+        print(f"golden paraphrases: {top3}/{len(GOLDEN)} in the top 3, {sum(r == 1 for r in ranks)} first; ranks {ranks}")
+        misses = [GOLDEN[i][3] for i, r in enumerate(ranks) if not r or r > 3]
+        assert top3 >= 18, f"missed: {misses}"
+    finally:
+        admin("DELETE", f"users/{user['id']}")

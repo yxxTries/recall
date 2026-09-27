@@ -116,10 +116,23 @@ async function digests(db: SupabaseClient) {
   return results
 }
 
+// Episodes stored without an embedding (seeded, or saved while embedding failed) get one.
+async function embedMissing(db: SupabaseClient) {
+  const { data: rows, error } = await db.from('episodes').select('user_id, episode_id, worked_on, context, topics')
+    .is('embedding', null).limit(50)
+  if (error) throw error
+  for (const e of rows ?? []) {
+    const embedding = await embed(`${e.worked_on} ${e.context} ${e.topics.join(' ')}`)
+    await db.from('episodes').update({ embedding: vector(embedding) }).eq('user_id', e.user_id).eq('episode_id', e.episode_id)
+  }
+  return rows?.length ?? 0
+}
+
 export default {
   fetch: withSupabase({ auth: 'secret' }, async (req, { supabaseAdmin: db }) => {
     const { task } = await req.json().catch(() => ({}))
     if (task === 'digests') return Response.json({ digests: await digests(db) })
+    if (task === 'embed') return Response.json({ embedded: await embedMissing(db) })
     const start = Date.now()
     const results: unknown[] = []
     while (Date.now() - start < BUDGET_MS) {
