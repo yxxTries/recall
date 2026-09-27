@@ -45,6 +45,8 @@ CLOUD (Supabase, private per user)
 
 ## Remaining work
 
+After the MVP: the launch build (easy install, sign in from anywhere, first-run window) is planned in [LAUNCH_PLAN.md](LAUNCH_PLAN.md).
+
 **1. Close Gate M7 (cloud + MCP)**
 
 - [x] Sign up and log in: `python -m recall.sync.cloud signup`, then `login`; restart Recall
